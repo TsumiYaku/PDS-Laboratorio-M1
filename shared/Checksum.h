@@ -1,10 +1,7 @@
-#ifndef CHECKSUM_H
-#define CHECKSUM_H
-
+#pragma once
 
 class Checksum {
 
 };
 
 
-#endif //SERVER_CHECKSUM_H

@@ -1,11 +1,10 @@
-#ifndef SERVER_SERVERSOCKET_H
-#define SERVER_SERVERSOCKET_H
+#pragma once
 
+#include <Socket.h>
 
+class ServerSocket: private Socket {
+public:
+    ServerSocket(int port);
 
-class ServerSocket {
-
+    Socket accept(struct sockaddr_in* addr, unsigned int* len);
 };
-
-
-#endif //SERVER_SERVERSOCKET_H

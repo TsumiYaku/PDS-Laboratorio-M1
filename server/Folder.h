@@ -1,5 +1,4 @@
-#ifndef SERVER_FOLDER_H
-#define SERVER_FOLDER_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -23,6 +22,3 @@ public:
     std::string getChecksum();
 
 };
-
-
-#endif //SERVER_FOLDER_H
