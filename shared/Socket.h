@@ -1,5 +1,5 @@
-#ifndef SERVER_SOCKET_H
-#define SERVER_SOCKET_H
+#ifndef SOCKET_H
+#define SOCKET_H
 
 
 class Socket {
@@ -7,4 +7,4 @@ class Socket {
 };
 
 
-#endif //SERVER_SOCKET_H
+#endif //SOCKET_H
