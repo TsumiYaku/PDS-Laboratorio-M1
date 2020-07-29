@@ -13,11 +13,8 @@ if (Boost_FOUND)
             Folder.cpp
             Folder.h
             main.cpp
-            Socket/Socket.cpp
-            Socket/Socket.h
-            Socket/ServerSocket.cpp
-            Socket/ServerSocket.h
-            )
+            ServerSocket.cpp
+            ServerSocket.h)
     target_link_libraries(server ${Boost_LIBRARIES})
 endif ()
 
