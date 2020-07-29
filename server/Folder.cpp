@@ -37,8 +37,9 @@ bool Folder::writeFile(const filesystem::path &path, char *buf, int size) {
 }
 
 // delete the file at specified path
-bool Folder::deleteFile(filesystem::path) {
-    return false;
+bool Folder::deleteFile(filesystem::path path) {
+    int removed = filesystem::remove_all(this->folderPath/path);
+    return removed > 0; //might change it to something better
 }
 
 // TODO: calculate checksum and return/save it
