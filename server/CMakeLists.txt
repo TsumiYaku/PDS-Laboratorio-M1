@@ -12,7 +12,12 @@ if (Boost_FOUND)
     add_executable(server
             Folder.cpp
             Folder.h
-            main.cpp)
+            main.cpp
+            Socket/Socket.cpp
+            Socket/Socket.h
+            Socket/ServerSocket.cpp
+            Socket/ServerSocket.h
+            )
     target_link_libraries(server ${Boost_LIBRARIES})
 endif ()
 
