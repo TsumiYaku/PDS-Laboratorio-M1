@@ -8,5 +8,5 @@ int main() {
     Folder fold = Folder("Test", "Test");
     char buf[] = {'T', 'e', 's', 't'};
 
-    fold.writeFile("test.txt", buf, 4);
+    fold.writeFile("subTest/subTest2/test.txt", buf, 4);
 }
