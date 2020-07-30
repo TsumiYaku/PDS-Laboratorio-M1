@@ -47,8 +47,12 @@ bool Folder::deleteFile(filesystem::path path) {
     return removed > 0; //might change it to something better
 }
 
-// Calculate checksum and return/save it; TODO: implement
-std::string Folder::getChecksum() {
-    return std::string();
+// Calculate checksum and return/save it;
+Checksum Folder::getChecksum() {
+    Checksum checksum = Checksum();
+    for(filesystem::path path: this->getContent())
+        checksum.add(path.string());
+
+    return checksum;
 }
 
