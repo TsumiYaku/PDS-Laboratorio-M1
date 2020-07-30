@@ -3,12 +3,9 @@
 #include <mutex>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <unistd.h>
 #include <string>
 #include <netinet/in.h>
 #include <functional>
-#include <sys/stat.h>
-#include <sys/sendfile.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sstream>
@@ -44,7 +41,7 @@ std::string Client::readline(){ //username o directory
 }
 
 void Client::close(){
-    this->status = exit;
+    status = closed;
     sock.closeSocket();
      //this->server->disattivaClient(this->sock);
      
@@ -123,12 +120,13 @@ void Client::handleConnection(){
             //mi metto in ascolto e attendo una modifica
             FileWatcher fw{directory, std::chrono::milliseconds(1000)};
             fw.start([this](std::string path_to_watch, FileStatus status) -> void {
+                int ret;
                 switch(status) {
                     case FileStatus::created:
                     std::cout << "Created: " << path_to_watch << '\n';
                     sock.write(std::string("created").c_str(), strlen( std::string("created").c_str())+1, 0);
                     //dico al server che è stato creato un file e lo invio al server
-                    int ret = inviaFile(path_to_watch);
+                    ret = inviaFile(path_to_watch);
                     if(ret < 0)
                         throw std::runtime_error("errore invio file");
                     break;
@@ -136,7 +134,7 @@ void Client::handleConnection(){
                     //dico al server che è stato modificato un file e lo invio al server
                     std::cout << "Modified: " << path_to_watch << '\n';
                     sock.write(std::string("modified").c_str(), strlen( std::string("modified").c_str())+1, 0);
-                    int ret = inviaFile(path_to_watch);
+                    ret = inviaFile(path_to_watch);
                     if(ret < 0)
                         throw std::runtime_error("errore invio file");
                     
@@ -145,15 +143,13 @@ void Client::handleConnection(){
                     //dico al server che è stato modificato un file e lo invio al server
                     sock.write(std::string("erased").c_str(), strlen( std::string("erased").c_str())+1, 0);
                     std::cout << "Erased: " << path_to_watch << '\n';
-                    int ret = inviaFile(path_to_watch);
+                    ret = inviaFile(path_to_watch);
                     if(ret < 0)
                         throw std::runtime_error("errore invio file");
                     
                     break;
-                    default:
-                    break;
                 }
-  	        });
+  	    });
         //}
         //else{
             //log("utente già esistente!");

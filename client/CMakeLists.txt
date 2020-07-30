@@ -3,6 +3,7 @@ add_executable(client
         Client.cpp
         FileWatcher.h
         FileWatcher.cpp
+        main.cpp
         )
 
 target_link_libraries(client shared)

@@ -6,8 +6,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <string>
-#include <list>
-#include <map>
 #include <functional>
 #include <shared_mutex>
 #include <string.h>
@@ -15,13 +13,13 @@
 #include <optional>
 #include <boost/filesystem.hpp>
 #include "FileWatcher.h"
-#include "../shared/Socket.h"
+#include <Socket.h>
 #include "../server/ServerSocket.h"
 
 using namespace boost;
 
 enum ClientStatus{
-    start, active, exit
+    start, active, closed
 };
 
 class Client{
@@ -41,6 +39,7 @@ public:
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
     Client(int sock , std::string address, int port);
+    ~Client();
 
     std::string readline(); //legge una riga da command line del client
 

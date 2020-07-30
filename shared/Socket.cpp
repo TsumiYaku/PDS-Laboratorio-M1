@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string.h>
 #include <netinet/in.h>
+#include <string>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -91,7 +92,7 @@ ssize_t Socket::writeFile(std::string pathFile, int options) {
     size = obj.st_size;
     ssize_t res = send(sockfd, &size, sizeof(int), options);
     if (res < 0) throw std::runtime_error("Error during size file sending");
-    ssize_t res = sendfile(sockfd, filehandle, NULL, size);
+    res = sendfile(sockfd, filehandle, NULL, size);
     if (res < 0) throw std::runtime_error("Error during file sending");
     return res;
 }
@@ -101,8 +102,8 @@ int Socket::readFile(std::string filename) {
     int ret = 0;
     int size;
     int fileHandle;
-	char *buf;
-	recv(sockfd, &size, sizeof(int), 0);
+    char *buf;
+    recv(sockfd, &size, sizeof(int), 0);
     
     fileHandle = open(filename.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0666);
     if(fileHandle == -1)
