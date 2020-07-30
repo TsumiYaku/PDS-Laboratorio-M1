@@ -1,9 +1,10 @@
+#pragma once
+
 #include <iostream>
 #include <thread>
 #include <mutex>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <unistd.h>
 #include <string>
 #include <list>
 #include <map>
@@ -14,28 +15,32 @@
 #include <optional>
 #include <boost/filesystem.hpp>
 #include "FileWatcher.h"
+#include "../shared/Socket.h"
+#include "../server/ServerSocket.h"
 
-using namespace boost::filesystem;
+using namespace boost;
 
 enum ClientStatus{
     start, active, exit
 };
 
 class Client{
-    int sock;
-    struct sockaddr_in saddr;
+
+    Socket sock;
     ClientStatus status;
     static std::mutex m;
-    static std::condition_variable modifica;
 
     std::string username;
     std::string directory;
 
-    //Server* server;
+    struct sockaddr_in* sad;
+    std::string address;
+    int port;
 
+public:
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
-    Client(int sock /*, Server* server*/): sock(sock), /*Server(server),*/ status(start){}
+    Client(int sock , std::string address, int port);
 
     std::string readline(); //legge una riga da command line del client
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <boost/filesystem.hpp>
 #include <functional>
 #include <chrono>

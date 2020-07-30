@@ -5,23 +5,17 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string>
-#include <list>
-#include <map>
 #include <netinet/in.h>
 #include <functional>
 #include <sys/stat.h>
-#include <shared_mutex>
 #include <sys/sendfile.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sstream>
-#include <optional>
 #include <boost/filesystem.hpp>
 #include "Client.h"
 
 using namespace boost::filesystem;
-using client = std::shared_ptr<Client>;
-
 
 std::mutex mout;
 void log(std::string msg){
@@ -29,98 +23,97 @@ void log(std::string msg){
     std::cout<<msg<<std::endl;
 }
 
+Client::Client(int socket, std::string address, int port): address(address), port(port), status(start){
+        memset(sad, 0, sizeof(sad));
+        sad->sin_family = AF_INET;
+        sad->sin_addr.s_addr = inet_addr(address.c_str());
+        sad->sin_port = htons(port);
+        sock = Socket(socket);
+        sock.connect(sad, sizeof(sad));
+}
+
 std::string Client::readline(){ //username o directory
      std::string buffer;
      char c;
-     while(recv(sock, &c, 1, 0) > 0){
+     while(sock.read(&c, 1, 0)){
         if(c=='\n')
           return buffer;
         else if(c |= '\r') buffer += c;
         }
-     return std::string();
+     return std::string("");
 }
 
 void Client::close(){
     this->status = exit;
+    sock.closeSocket();
      //this->server->disattivaClient(this->sock);
-     shutdown(sock, SHUT_RDWR);
+     
+}
+
+Client::~Client(){
+    close();
 }
 
 void Client::handleConnection(){
+
     std::thread controllaDirectory([this](){
-        log("USER:");
-        std::string user = this->readline();
-        while(user.empty()){ 
-            log("Errore: inserire un username valido");
+        std::string user;
+        do{
             log("USER:");
-            user = this->readline();
-        }
-
-        if(/*server->findClient(user)*/ nullptr == nullptr)
-        {
+            user = readline();
+            if(user.empty())
+              log("Errore: inserire un username valido");
+        }while(user.empty());
+        //user ha inserito un nome non nullo ("")
+        this->status = active;
+        //if(/*server->findClient(user)*/ nullptr == nullptr)
+        //{
+        std::string directory;
+        path dir;
+        int stato;//per sapere se server ha letto corremìtamente file inviatogli
+        do{
             log("DIRECTORY:");
-            std::string directory = this->readline();
-            this->status = active;
-            path dir(directory);
-            sock = socket(AF_INET, SOCK_STREAM, 0);
-            if(sock == -1)
-            {
-               log("socket creation failed");
-               return;
-            }
-            //saddr.sin_family = AF_INET;
-            //saddr.sin_port = ntohs(server->port);
-
-            if(exists(dir) && is_directory(dir)){
-                if(/*server->findDirectory(directory, user)*/ true){
-                    //TO DO eseguo checksum su le due directory
-                }else{
-                    path dir(directory);
-                    for (auto& p : recursive_directory_iterator(dir)) {
-                         if(is_directory(p)){//invio il nome della cartella al server
-                           send(sock, p.path().relative_path().c_str(), strlen(p.path().relative_path().c_str())+1, 0);
-                           recv(sock, &status, sizeof(int), 0);
-                           if(status)
-                                log("OK");
-                           else
-                                throw std::runtime_error("error");
-                         }
-                         else if(is_regular_file(p)) //invio il file e il suo contenuto
-                         {
-                           struct stat obj;
-                           int size, filehandle;
-                           filehandle = open(p.path().relative_path().c_str(), O_RDONLY);
-                           if(filehandle==-1){
-                                 throw std::runtime_error("eimpossibile aprire file");
-                           }else{
-                                //invio nome file
-                                send(sock, p.path().relative_path().c_str(), strlen(p.path().c_str())+1, 0);
-                                //calcolo la sua dimensione e la invio al server
-                                stat(p.path().c_str(), &obj); 
-                                size = obj.st_size;
-                                send(sock, &size, sizeof(int), 0);
-                                //invio file
-                                sendfile(sock, filehandle, NULL, size);
-                                //ricevo un ack da server se è andato tutto a buon fine
-                                recv(sock, &status, sizeof(int), 0);
-                                if(status)
-                                    log("OK");
-                                else
-                                   throw std::runtime_error("error");
-                           }
-                         }
+            directory = readline();
+            dir = path(directory);
+            if(is_directory(dir))
+              log("Errore: inserire un path valido e esistente");
+        }while(is_directory(dir));
+        
+        if(exists(dir)){ //la cartella esiste e quindi verifico se server ha gia cartella oppure no
+            //if(server->findDirectory)
+            //{TODO}
+            //else{
+                for(directory_entry& p : recursive_directory_iterator(dir)) {
+                    if(is_directory(p)){
+                        sock.write(p.path().relative_path().string().c_str(), strlen(p.path().relative_path().c_str())+1, 0);
+                        sock.readInt(&stato, sizeof(stato), 0);
+                        if(status)
+                            log("OK");
+                        else
+                            throw std::runtime_error("error");
+                    }
+                    else if(is_regular_file(p)) //invio il file e il suo contenuto
+                    {
+                        //invio nome file
+                        sock.write(p.path().relative_path().c_str(), strlen(p.path().c_str())+1, 0);
+                        sock.writeFile(p.path().relative_path().string(), 0); 
+                        sock.readInt(&stato, sizeof(stato), 0);
+                        if(status)
+                            log("OK");
+                        else
+                            throw std::runtime_error("error");
                     }
                 }
-            }
-            else if(!exists(dir)){
-                path p(directory);
-                if(!create_directory(p))
+            //}
+        }
+        else{
+                if(!create_directory(dir))
                    throw std::runtime_error("impossibile creare directory");
                 else
                 {
-                    send(sock, p.relative_path().c_str(), strlen(p.relative_path().c_str())+1, 0);
-                    recv(sock, &status, sizeof(int), 0);
-                    if(status)
+                    sock.write(dir.relative_path().c_str(), strlen(dir.relative_path().c_str())+1, 0);
+                    sock.readInt(&stato, sizeof(stato), 0);
+                    if(stato)
                         log("OK");
                     else
                         throw std::runtime_error("error");
@@ -133,7 +126,7 @@ void Client::handleConnection(){
                 switch(status) {
                     case FileStatus::created:
                     std::cout << "Created: " << path_to_watch << '\n';
-                    send(sock, std::string("created").c_str(), strlen( std::string("created").c_str())+1, 0);
+                    sock.write(std::string("created").c_str(), strlen( std::string("created").c_str())+1, 0);
                     //dico al server che è stato creato un file e lo invio al server
                     int ret = inviaFile(path_to_watch);
                     if(ret < 0)
@@ -142,7 +135,7 @@ void Client::handleConnection(){
                     case FileStatus::modified:
                     //dico al server che è stato modificato un file e lo invio al server
                     std::cout << "Modified: " << path_to_watch << '\n';
-                    send(sock, std::string("modified").c_str(), strlen( std::string("modified").c_str())+1, 0);
+                    sock.write(std::string("modified").c_str(), strlen( std::string("modified").c_str())+1, 0);
                     int ret = inviaFile(path_to_watch);
                     if(ret < 0)
                         throw std::runtime_error("errore invio file");
@@ -150,7 +143,7 @@ void Client::handleConnection(){
                     break;
                     case FileStatus::erased:
                     //dico al server che è stato modificato un file e lo invio al server
-                    send(sock, std::string("erased").c_str(), strlen( std::string("erased").c_str())+1, 0);
+                    sock.write(std::string("erased").c_str(), strlen( std::string("erased").c_str())+1, 0);
                     std::cout << "Erased: " << path_to_watch << '\n';
                     int ret = inviaFile(path_to_watch);
                     if(ret < 0)
@@ -161,43 +154,33 @@ void Client::handleConnection(){
                     break;
                 }
   	        });
-        }
-        else{
+        //}
+        //else{
             //log("utente già esistente!");
             //close();
             //return;
-        }  
+        //}  
     });
     controllaDirectory.detach();
 }
 
 int Client::inviaFile(std::string path_){
     path p(path_);
+    int stato;
     if(is_directory(p)){//invio il nome della cartella al server
-         send(sock, p.relative_path().c_str(), strlen(p.relative_path().c_str())+1, 0);
-         recv(sock, &status, sizeof(int), 0);
-         return status;                     
+         sock.write(p.relative_path().c_str(), strlen(p.relative_path().c_str())+1, 0);
+         sock.readInt(&stato, sizeof(int), 0);
+         return stato;                     
     }
     if(is_regular_file(p)) //invio il file e il suo contenuto
     {
-        struct stat obj;
-        int size, filehandle;
-        filehandle = open(p.relative_path().c_str(), O_RDONLY);
-        if(filehandle==-1){
-                return -1;
-        }else{
-            //invio nome file
-            send(sock, p.relative_path().c_str(), strlen(p.c_str())+1, 0);
-            //calcolo la sua dimensione e la invio al server
-            stat(p.c_str(), &obj); 
-            size = obj.st_size;
-            send(sock, &size, sizeof(int), 0);
-            //invio file
-            sendfile(sock, filehandle, NULL, size);
-            //ricevo un ack da server se è andato tutto a buon fine
-            recv(sock, &status, sizeof(int), 0);
-            return status;
-        }
+       sock.write(p.relative_path().c_str(), strlen(p.c_str())+1, 0);
+        sock.writeFile(p.relative_path().string(), 0); 
+        sock.readInt(&stato, sizeof(stato), 0);
+        if(stato)
+            log("OK");
+        else
+            throw std::runtime_error("error");
     }
     return -2;
 }

@@ -17,11 +17,19 @@ public:
     Socket(int sockfd);
     ~Socket();
     Socket(Socket &&other);
+    void closeSocket();
     Socket &operator=(Socket &&other);
-
+    
     // Operations
     ssize_t read(char* buf, size_t len, int options);
+  
     ssize_t write(char* buf, size_t len, int options);
+   
     void connect(struct sockaddr_in *addr, unsigned int len);
+
+    ssize_t readInt(int* val, size_t len, int options);
+    ssize_t write(const char* buf, size_t len, int options);//override metodo
+    int readFile(std::string filename);
+    ssize_t writeFile(std::string pathFile, int options);
 
 };
