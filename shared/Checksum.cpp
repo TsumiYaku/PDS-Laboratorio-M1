@@ -1,10 +1,20 @@
 #include "Checksum.h"
 
+/* Number of bytes that compose the checksum (up to 32 bits) */
+#define NBYTES 4
+
+Checksum::Checksum() {
+    bitmask = 0;
+    for(int i=0; i<NBYTES; i++) {
+        bitmask += 0xff << (i*8);
+    }
+}
+
 void Checksum::add(const char *str, int len) {
-    for (int i=0; i<len; i++) {
-        checksum = (checksum >> 1) + ((checksum & 1) << 7);
+    for (int i=0; i<len; i+=NBYTES) {
+        checksum = (checksum >> 1) + ((checksum & 1) << (NBYTES*8-1));
         checksum += str[i];
-        checksum &= 0xff;
+        checksum &= bitmask;
     }
 }
 
@@ -17,7 +27,7 @@ void Checksum::reset() {
     checksum = 0;
 }
 
-uint8_t Checksum::getChecksum() {
+uint32_t Checksum::getChecksum() {
     return checksum;
 }
 
