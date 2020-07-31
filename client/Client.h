@@ -15,6 +15,7 @@
 #include "FileWatcher.h"
 #include <Socket.h>
 #include "../server/ServerSocket.h"
+#include <Checksum.h>
 
 using namespace boost;
 
@@ -34,16 +35,18 @@ class Client{
     struct sockaddr_in* sad;
     std::string address;
     int port;
-
+    int inviaFile(std::string path_); //ivia file al server, ritorna stato
+    void inviaDirectory(path dir); //ivia directory e suo contenuto al server
+    std::string readline(); //legge una riga da command line del client
+    void sincronizza(std::string path_); //invia directory/file modificata a server fino ad essere sinconizzata con quella del client
 public:
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
-    Client(int sock , std::string address, int port);
+    Client(int sock, std::string address, int port);
     ~Client();
-
-    std::string readline(); //legge una riga da command line del client
+    
 
     void close(); //chiude client
-    int inviaFile(std::string path_); //ivia file/directory al server, ritorna status
-    void handleConnection(); //client in connessione con server e in ascolto per backup
+    
+    void monitoraCartella(); //client in connessione con server e in ascolto per backup
 };
