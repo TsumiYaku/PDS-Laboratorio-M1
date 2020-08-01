@@ -1,6 +1,9 @@
 #include <iostream>
+#include <bitset>
 #include "Folder.h"
+#include <boost/asio.hpp>
 
+using namespace boost;
 
 int main() {
     if(!filesystem::exists("Test"))
@@ -10,9 +13,13 @@ int main() {
 
     fold.deleteFile("subTest/subTest2/test.txt");
 
-    std::cout << (unsigned int)fold.getChecksum().getChecksum() << std::endl;
+    std::bitset<32> a(fold.getChecksum().getChecksum());
+    std::cout << a << std::endl;
 
     fold.writeFile("subTest/subTest2/test.txt", buf, 4);
 
-    std::cout << (unsigned int)fold.getChecksum().getChecksum() << std::endl;
+    std::bitset<32> b(fold.getChecksum().getChecksum());
+    std::cout << b << std::endl;
+
+    
 }

@@ -6,6 +6,7 @@
 /* Implementation of a n-bits (8/16/24/32 bits) checksum using BSD checksum algorithm:
  * en.wikipedia.org/wiki/BSD_checksum */
 
+
 class Checksum {
 private:
     uint32_t checksum = 0;
