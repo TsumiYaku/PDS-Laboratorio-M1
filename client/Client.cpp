@@ -20,6 +20,16 @@ void log(std::string msg){
     std::cout<<msg<<std::endl;
 }
 
+//calcola il checksum parteno dal path
+Checksum getChecksum(path p) {
+    Checksum checksum = Checksum();
+    for(filesystem::path path: p)
+        checksum.add(path.string());
+
+    return checksum;
+}
+
+//CLIENT
 Client::Client(int socket, std::string address, int port): address(address), port(port), status(start){
         memset(sad, 0, sizeof(sad));
         sad->sin_family = AF_INET;
@@ -51,9 +61,11 @@ Client::~Client(){
     close();
 }
 
-void Client::handleConnection(){
-
+void Client::monitoraCartella(){
     std::thread controllaDirectory([this](){
+
+        //std::lock_guard<std::mutex> lg(m);
+        /************************DA PORTARE AL MAIN FORSE******************/
         std::string user;
         do{
             log("USER:");
@@ -63,8 +75,7 @@ void Client::handleConnection(){
         }while(user.empty());
         //user ha inserito un nome non nullo ("")
         this->status = active;
-        //if(/*server->findClient(user)*/ nullptr == nullptr)
-        //{
+        
         std::string directory;
         path dir;
         int stato;//per sapere se server ha letto corremìtamente file inviatogli
@@ -72,42 +83,36 @@ void Client::handleConnection(){
             log("DIRECTORY:");
             directory = readline();
             dir = path(directory);
-            if(is_directory(dir))
-              log("Errore: inserire un path valido e esistente");
-        }while(is_directory(dir));
-        
+            if(!is_directory(dir))
+              log("Errore: inserire un path valido");
+        }while(!is_directory(dir));
+        /*****************************************************************/
+
         if(exists(dir)){ //la cartella esiste e quindi verifico se server ha gia cartella oppure no
-            //if(server->findDirectory)
-            //{TODO}
-            //else{
-                for(directory_entry& p : recursive_directory_iterator(dir)) {
-                    if(is_directory(p)){
-                        sock.write(p.path().relative_path().string().c_str(), strlen(p.path().relative_path().c_str())+1, 0);
-                        sock.readInt(&stato, sizeof(stato), 0);
-                        if(status)
-                            log("OK");
-                        else
-                            throw std::runtime_error("error");
-                    }
-                    else if(is_regular_file(p)) //invio il file e il suo contenuto
-                    {
-                        //invio nome file
-                        sock.write(p.path().relative_path().c_str(), strlen(p.path().c_str())+1, 0);
-                        sock.writeFile(p.path().relative_path().string(), 0); 
-                        sock.readInt(&stato, sizeof(stato), 0);
-                        if(status)
-                            log("OK");
-                        else
-                            throw std::runtime_error("error");
-                    }
-                }
-            //}
+            int cartellaTrovataServer = 0;
+            sock.write(dir.relative_path().string().c_str(), strlen(dir.relative_path().c_str())+1, 0);//invio path a server
+            sock.readInt(&cartellaTrovataServer, sizeof(cartellaTrovataServer), 0);//ricevo response da server
+            if(!cartellaTrovataServer){//invio la sua copia al server
+                inviaDirectory(dir);
+            }else{
+                //verifico se è gia sincornizzata con checksum
+                Checksum check();
+                int val = getChecksum(dir).getChecksum();
+                sock.writeInt(&val, sizeof(val), 0);
+                sock.readInt(&stato, sizeof(stato), 0);
+                if(stato)
+                    log("OK");//cartella gia sincronizzata
+                else{
+                    inviaDirectory(dir);//risincronizzo
+                }   
+            }
         }
-        else{
+        else{//creo cartella e la mando al server
                 if(!create_directory(dir))
                    throw std::runtime_error("impossibile creare directory");
                 else
                 {
+                    sock.write("new_directory", strlen("new_directory")+1, 0);
                     sock.write(dir.relative_path().c_str(), strlen(dir.relative_path().c_str())+1, 0);
                     sock.readInt(&stato, sizeof(stato), 0);
                     if(stato)
@@ -127,16 +132,16 @@ void Client::handleConnection(){
                     sock.write(std::string("created").c_str(), strlen( std::string("created").c_str())+1, 0);
                     //dico al server che è stato creato un file e lo invio al server
                     ret = inviaFile(path_to_watch);
-                    if(ret < 0)
-                        throw std::runtime_error("errore invio file");
+                    if(ret < 0)//se la modifica non è andata a buon fine allora cerco di sincronizzarmi
+                        sincronizza(path_to_watch);
                     break;
                     case FileStatus::modified:
                     //dico al server che è stato modificato un file e lo invio al server
                     std::cout << "Modified: " << path_to_watch << '\n';
                     sock.write(std::string("modified").c_str(), strlen( std::string("modified").c_str())+1, 0);
                     ret = inviaFile(path_to_watch);
-                    if(ret < 0)
-                        throw std::runtime_error("errore invio file");
+                    if(ret < 0)//se la modifica non è andata a buon fine allora cerco di sincronizzarmi
+                        sincronizza(path_to_watch);
                     
                     break;
                     case FileStatus::erased:
@@ -144,19 +149,13 @@ void Client::handleConnection(){
                     sock.write(std::string("erased").c_str(), strlen( std::string("erased").c_str())+1, 0);
                     std::cout << "Erased: " << path_to_watch << '\n';
                     ret = inviaFile(path_to_watch);
-                    if(ret < 0)
-                        throw std::runtime_error("errore invio file");
-                    
+                    if(ret < 0)//se la modifica non è andata a buon fine allora cerco di sincronizzarmi
+                        sincronizza(path_to_watch);
                     break;
                 }
-  	    });
-        //}
-        //else{
-            //log("utente già esistente!");
-            //close();
-            //return;
-        //}  
+  	    }); 
     });
+
     controllaDirectory.detach();
 }
 
@@ -179,5 +178,54 @@ int Client::inviaFile(std::string path_){
             throw std::runtime_error("error");
     }
     return -2;
+}
+
+void Client::inviaDirectory(path dir){
+    int stato;
+    for(directory_entry& p : recursive_directory_iterator(dir)) {
+            if(is_directory(p)){
+            sock.write(p.path().relative_path().string().c_str(), strlen(p.path().relative_path().c_str())+1, 0);
+            sock.readInt(&stato, sizeof(stato), 0);
+            if(stato)
+                log("OK");
+            else
+                throw std::runtime_error("error");
+        }
+        else if(is_regular_file(p)) //invio il file e il suo contenuto
+        {
+            //invio nome file
+            sock.write(p.path().relative_path().c_str(), strlen(p.path().c_str())+1, 0);
+            sock.writeFile(p.path().relative_path().string(), 0); 
+            sock.readInt(&stato, sizeof(stato), 0);
+            if(stato)
+                log("OK");
+            else
+                throw std::runtime_error("error");
+        }
+    }
+}
+
+
+void Client::sincronizza(std::string path_to_watch) {
+    Checksum check();
+    int ok = 0;
+    int ret = 0;
+    path p(path_to_watch);
+
+    do{
+        int val = getChecksum(p).getChecksum();
+
+        sock.writeInt(&val, sizeof(val), 0);
+        sock.readInt(&ok, sizeof(ok), 0);
+
+        if(ok)
+            log("OK");//cartella gia sincronizzata
+        else{
+            if(is_directory(p))
+                inviaDirectory(p);//risincronizzo
+            else if(is_regular_file(p))
+                ret = inviaFile(path_to_watch);
+        }
+    }while(!ok && !ret);
 }
 

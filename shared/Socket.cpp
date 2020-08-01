@@ -72,6 +72,13 @@ ssize_t Socket::write(const char *buf, size_t len, int options) {
     return res;
 }
 
+//send integer
+ssize_t Socket::writeInt(int* value, size_t len, int options) {
+    ssize_t res = send(sockfd, &value, len, options);
+    if (res < 0) throw std::runtime_error("Error during data sending");
+    return res;
+}
+
 //recieve integer status
 ssize_t Socket::readInt(int* buf, size_t len, int options) {
     ssize_t res = recv(sockfd, buf, len, options);

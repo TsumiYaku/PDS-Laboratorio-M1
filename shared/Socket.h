@@ -29,6 +29,7 @@ public:
     void connect(struct sockaddr_in *addr, unsigned int len);
 
     ssize_t readInt(int* val, size_t len, int options);
+     ssize_t writeInt(int* val, size_t len, int options);
     ssize_t write(const char* buf, size_t len, int options);//override metodo
     int readFile(std::string filename);
     ssize_t writeFile(std::string pathFile, int options);
