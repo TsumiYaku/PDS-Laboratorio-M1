@@ -6,6 +6,7 @@ add_library(shared
         packets/Message.cpp
         packets/Message.h
         packets/FileWrapper.cpp
-        packets/FileWrapper.h)
+        packets/FileWrapper.h
+        packets/main.cpp)
 
 target_include_directories(shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
