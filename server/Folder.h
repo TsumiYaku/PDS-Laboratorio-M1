@@ -18,7 +18,9 @@ public:
     Folder(const std::string &owner, const std::string &path);
 
     std::vector<filesystem::path> getContent(); // Return content of the folder
-    bool writeFile(const filesystem::path &path, char* buf, int size); // Writes a file in the specified path
+    bool writeFile(const filesystem::path &path, char* buf, size_t size); // Writes a file in the specified path
+    bool readFile(const filesystem::path &path, char* buf, size_t size);
+    ssize_t getFileSize(const filesystem::path &path);
     bool deleteFile(filesystem::path); // Deletes a file in the specified path
     Checksum getChecksum(); // Calculate and return checksum;
 

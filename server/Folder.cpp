@@ -2,6 +2,8 @@
 #include <ios>
 #include <iostream>
 
+using std::ios;
+
 Folder::Folder(const std::string &owner, const std::string &path) : owner(owner), folderPath(filesystem::path(path)) {
     // Create directory if not present
     filesystem::create_directory(this->folderPath);
@@ -19,7 +21,7 @@ std::vector<filesystem::path> Folder::getContent() {
 }
 
 // Create or replace file using specified path and data in buf
-bool Folder::writeFile(const filesystem::path &path, char *buf, int size) {
+bool Folder::writeFile(const filesystem::path &path, char *buf, size_t size) {
     filesystem::path filePath = this->folderPath/path;
 
     try {
@@ -29,8 +31,8 @@ bool Folder::writeFile(const filesystem::path &path, char *buf, int size) {
 
         // Write buf data into the file (might need to change to binary)
         filesystem::ofstream file;
-        file.open(filePath, std::ios::out | std::ios::trunc);
-        file << buf;
+        file.open(filePath, ios::out | ios::trunc | ios::binary);
+        file.write(buf, size);
         file.close();
     }
     catch (filesystem::filesystem_error& e) { // File opening might cause a filesystem_error
@@ -39,6 +41,37 @@ bool Folder::writeFile(const filesystem::path &path, char *buf, int size) {
     }
 
     return true;
+}
+
+bool Folder::readFile(const filesystem::path &path, char *buf, size_t size) {
+    filesystem::path filePath = this->folderPath/path;
+
+    if(!filesystem::exists(filePath))
+        return false;
+
+    try {
+        size_t fileSize = filesystem::file_size(filePath);
+        if (size > fileSize) size = fileSize;
+
+        filesystem::ifstream file;
+        file.open(filePath, ios::in | ios::binary);
+        file.read(buf, size);
+    }
+    catch (filesystem::filesystem_error& e) { // File opening might cause a filesystem_error
+        std::cout << e.what();
+        return false;
+    }
+
+    return true;
+}
+
+ssize_t Folder::getFileSize(const filesystem::path &path) {
+    filesystem::path filePath = this->folderPath/path;
+
+    if(!filesystem::exists(filePath))
+        return -1;
+
+    return filesystem::file_size(filePath);
 }
 
 // Delete file at the specified path
@@ -55,4 +88,6 @@ Checksum Folder::getChecksum() {
 
     return checksum;
 }
+
+
 
