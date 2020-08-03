@@ -1,5 +1,9 @@
 #pragma once
 #include <iostream>
+#include <boost/serialization/access.hpp>
+#include <boost/serialization/string.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
 #include "FileWrapper.h"
 
 using Serializer = boost::archive::text_oarchive;
@@ -14,7 +18,7 @@ class Message {
     MessageType type;
 
 public:
-    Message();
+    Message(MessageType type);
     Message(std::string message);
     Message(FileWrapper file);
     

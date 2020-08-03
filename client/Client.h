@@ -14,10 +14,16 @@
 #include <boost/filesystem.hpp>
 #include "FileWatcher.h"
 #include <Socket.h>
-#include "../server/ServerSocket.h"
 #include <Checksum.h>
+#include <boost/serialization/serialization.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/serialization/access.hpp>
+#include <boost/serialization/string.hpp>
 
-using namespace boost;
+using namespace boost::filesystem;
+using Serializer = boost::archive::text_oarchive;
+using Deserializer = boost::archive::text_iarchive;
 
 enum ClientStatus{
     start, active, closed
@@ -27,26 +33,29 @@ class Client{
 
     Socket sock;
     ClientStatus status;
-    static std::mutex m;
+    static std::mutex mu;
 
-    std::string username;
-    std::string directory;
+    //std::string username;
+    //std::string password;
+
+    //std::string directory;
 
     struct sockaddr_in* sad;
     std::string address;
     int port;
-    int inviaFile(std::string path_); //ivia file al server, ritorna stato
-    void inviaDirectory(path dir); //ivia directory e suo contenuto al server
+    
+    void inviaFile(path path_, FileStatus status); //ivia richiesta aggiunta/modifica file al server
+    void downloadDirectory(); //scarica il contenuto inviato dal server fino alla recezione del messagio END
     std::string readline(); //legge una riga da command line del client
-    void sincronizza(std::string path_); //invia directory/file modificata a server fino ad essere sinconizzata con quella del client
+    void sincronizzaFile(std::string path_, FileStatus status); //invia directory/file modificata al server in modalità asincrona (thread separato)
+    
 public:
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
     Client(int sock, std::string address, int port);
     ~Client();
     
-
     void close(); //chiude client
-    
-    void monitoraCartella(); //client in connessione con server e in ascolto per backup
+    bool doLogin(std::string user, std::string password); //effettua login. restituisce true se si è effettuato logi da server o false se user o psw è errata
+    void monitoraCartella(std::string path); //client in connessione con server e in ascolto per backup
 };

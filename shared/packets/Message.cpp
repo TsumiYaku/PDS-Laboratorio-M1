@@ -1,6 +1,7 @@
 #include "Message.h"
 
-Message::Message(){}
+Message::Message(MessageType type):type(type){}
+
 Message::Message(std::string message):message(message){
     type = MessageType::text;
     file = FileWrapper();

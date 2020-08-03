@@ -1,4 +1,3 @@
-
 #include <boost/serialization/access.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/archive/text_oarchive.hpp>
@@ -27,7 +26,7 @@ int main()
         Serializer oa(ss);
         m.serialize(oa, 0);
         std::cout<<"\nContenuto archivio testuale (da inviare a server/client):\n"<< ss.str()<<std::endl << std::endl;
-
+        m = Message(MessageType::file);
         //deserialization
         Deserializer ia(ss);
         m.unserialize(ia, 0);
@@ -37,13 +36,13 @@ int main()
         std::cout<<"\n\n\nTEXT MESSAGE SERIALIZE/UNSERIALIZE"<<std::endl;
         Message m2 = Message(std::string("ACK"));
         m2.print();
-
+       
         //serialize
         std::stringstream ss2;
         Serializer oa2(ss2);
         m2.serialize(oa2, 0);
         std::cout<<"\nContenuto archivio testuale (da inviare a server/client):\n"<< ss2.str()<<std::endl<< std::endl;
-
+        m2 = Message(MessageType::text);
         //deserialization
         Deserializer ia2(ss2);
         m2.unserialize(ia2, 0);

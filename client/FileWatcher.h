@@ -6,9 +6,9 @@
 #include <thread>
 #include <unordered_map>
 #include <string>
-using namespace boost::filesystem;
+#include <packets/FileStatus.h>
 
-enum class FileStatus {created, modified, erased};
+using namespace boost::filesystem;
 
 class FileWatcher {
  public:

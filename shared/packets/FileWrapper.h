@@ -8,12 +8,10 @@
 #include <string>
 #include <string.h>
 #include <iostream>
-
+#include <packets/FileStatus.h>
 
 using namespace boost;
 using namespace serialization;
-
-enum class FileStatus {created, modified, erased};
 
 class FileWrapper {
     friend class boost::serialization::access;
@@ -27,7 +25,9 @@ public:
     FileWrapper();
     FileWrapper(filesystem::path filePath, char* data, FileStatus status);
     void print();
-
+    filesystem::path getPath();
+    char* getData();
+    
     template<class Archive>
     void serialize(Archive& ar, const unsigned int version){
         ar & BOOST_SERIALIZATION_NVP(filePath.relative_path().string());

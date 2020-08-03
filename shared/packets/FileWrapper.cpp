@@ -16,6 +16,14 @@ FileWrapper::FileWrapper(filesystem::path filePath, char *data, FileStatus statu
     len = strlen(data);
 }
 
+filesystem::path FileWrapper::getPath(){
+    return filePath;
+}
+
+char* FileWrapper::getData(){
+    return data;
+}
+
 void FileWrapper::print(){
     std::cout <<"PATH: "<< filePath.relative_path().string() << std::endl;
     std::cout <<"DATA:" << data << std::endl;
