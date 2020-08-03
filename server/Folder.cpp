@@ -81,12 +81,12 @@ bool Folder::deleteFile(filesystem::path path) {
 }
 
 // Calculate checksum and return/save it;
-Checksum Folder::getChecksum() {
+uint32_t Folder::getChecksum() {
     Checksum checksum = Checksum();
     for(filesystem::path path: this->getContent())
         checksum.add(path.string());
 
-    return checksum;
+    return checksum.getChecksum();
 }
 
 
