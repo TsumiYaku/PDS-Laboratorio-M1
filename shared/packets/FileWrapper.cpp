@@ -7,8 +7,9 @@ using namespace serialization;
 
 FileWrapper::FileWrapper()
 {
-    
+    data = nullptr;
 }
+
 FileWrapper::FileWrapper(filesystem::path filePath, char *data, FileStatus status):
     filePath(filePath), data(data), status(status)
 {

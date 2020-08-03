@@ -5,7 +5,6 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/serialization/access.hpp>
-#include <boost/serialization/export.hpp>
 #include <string>
 #include <string.h>
 #include <iostream>
@@ -42,7 +41,7 @@ public:
     }
 
     template<class Archive>
-    void deserialize(Archive& ar, const unsigned int version){
+    void unserialize(Archive& ar, const unsigned int version){
         int st;
         std::string p;
         ar &  BOOST_SERIALIZATION_NVP(p); 
@@ -57,5 +56,4 @@ public:
         data = new char[len];
         ar & serialization::make_array<char>(data, len+1);
     }
-    
 };
