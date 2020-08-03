@@ -4,7 +4,8 @@ add_executable(server
         main.cpp
         ServerSocket.cpp
         ServerSocket.h
-        )
+        Server.cpp
+        Server.h Connection.cpp Connection.h)
 
 target_link_libraries(server shared)
 find_package(Boost 1.73.0 COMPONENTS filesystem)
