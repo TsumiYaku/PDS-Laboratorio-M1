@@ -99,7 +99,7 @@ void Client::monitoraCartella(std::string p){
         Serializer oa(ss);
         m.serialize(oa, 0);
         sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio richiesta di sincornizzazione a server
-        sock.readInt(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
+        sock.read(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
        
         if(exists(dir)){ //la cartella esiste e quindi la invio al server  
             if((checksumServer == 0 && checksumClient != 0) || checksumClient != checksumServer){//invio tutto la directory per sincornizzare
@@ -246,7 +246,7 @@ void Client::inviaFile(filesystem::path p, FileStatus status){
     Serializer oa(ss);
     m.serialize(oa, 0);
     sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio richiesta di checsum a server
-    sock.readInt(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
+    sock.read(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
     if(checksumClient != checksumServer){
         sincronizzaFile(p.relative_path().string(), status);
     }

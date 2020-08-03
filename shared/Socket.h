@@ -21,17 +21,15 @@ public:
     void closeSocket();
     Socket &operator=(Socket &&other);
     
-    // Operations
-    ssize_t read(char* buf, size_t len, int options);
-  
-    ssize_t write(char* buf, size_t len, int options);
-   
+    /* Operations */
     void connect(struct sockaddr_in *addr, unsigned int len);
 
-    ssize_t readInt(int* val, size_t len, int options);
-     ssize_t writeInt(int* val, size_t len, int options);
-    ssize_t write(const char* buf, size_t len, int options);//override metodo
-    int readFile(std::string filename);
-    ssize_t writeFile(std::string pathFile, int options);
+    // Socket read
+    ssize_t read(char* buf, size_t len, int options);
+    ssize_t read(int* val, size_t len, int options);
+
+    // Socket write
+    ssize_t write(const char* buf, size_t len, int options);
+    ssize_t write(int* value, size_t len, int options);
 
 };
