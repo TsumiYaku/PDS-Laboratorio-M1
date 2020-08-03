@@ -27,6 +27,7 @@ public:
     void print();
     filesystem::path getPath();
     char* getData();
+    FileStatus getStatus();
     
     template<class Archive>
     void serialize(Archive& ar, const unsigned int version){

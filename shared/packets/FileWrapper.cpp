@@ -30,3 +30,7 @@ void FileWrapper::print(){
     std::cout <<"SIZE:" << len << std::endl;
 }
 
+FileStatus FileWrapper::getStatus() {
+    return status;
+}
+

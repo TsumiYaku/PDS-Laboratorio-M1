@@ -37,3 +37,7 @@ FileWrapper Message::getFileWrapper(){
 std::string Message::getMessage(){
     return message;
 }
+
+MessageType Message::getType() {
+    return type;
+}

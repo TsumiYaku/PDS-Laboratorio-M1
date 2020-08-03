@@ -26,6 +26,7 @@ public:
 
     FileWrapper getFileWrapper();
     std::string getMessage();
+    MessageType getType();
 
     template<class Archive>
     void serialize(Archive& ar, const unsigned int version){
