@@ -10,14 +10,18 @@ class Connection {
     std::string username;
     Folder *f;
     bool logged = false;
+    bool terminate = false;
 
 private:
-    Message awaitMessage();
-    void handlePacket(Message m); // handle messages sent by client
+    Message&& awaitMessage(size_t);
+    void handlePacket(Message&&); // handle messages sent by client
     void sendChecksum();
-    void sendResponse(const std::string& r);
-    void receiveFiles();
-    void sendFiles();
+    void sendMessage(Message&&);
+    void synchronize();
+    void receiveDirectory();
+    void sendDirectory();
+    void receiveFile();
+    void listenPackets();
 
 public:
     Connection(Socket socket);
