@@ -13,6 +13,7 @@
 #include <optional>
 #include <boost/filesystem.hpp>
 #include "FileWatcher.h"
+#include <packets/Message.h>
 #include <Socket.h>
 #include <Checksum.h>
 #include <boost/serialization/serialization.hpp>
@@ -56,6 +57,7 @@ public:
     ~Client();
     
     void close(); //chiude client
+    void recieveACK(Message m); //ricezione di un messaggio ACK
     bool doLogin(std::string user, std::string password); //effettua login. restituisce true se si è effettuato logi da server o false se user o psw è errata
     void monitoraCartella(std::string path); //client in connessione con server e in ascolto per backup
 };

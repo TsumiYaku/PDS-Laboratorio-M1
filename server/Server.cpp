@@ -34,13 +34,13 @@ void Server::run() {
 }
 
 void Server::enqueueConnection(const Connection& conn) {
-    std::lock_guard lg(pool_m);
+    std::lock_guard<std::mutex> lg(pool_m);
     connections.push(conn);
     pool_cv.notify_all(); // notify threads that a new connection is ready to be handled
 }
 
 Connection Server::dequeueConnection() {
-    std::unique_lock lg(pool_m);
+    std::unique_lock<std::mutex> lg(pool_m);
     while(connections.empty()) // wait for a connection to handle
         pool_cv.wait(lg);
 

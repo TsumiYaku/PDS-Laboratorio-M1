@@ -6,7 +6,7 @@
 #include <netinet/in.h>
 
 class Socket {
-    Socket(const Socket &) = delete;
+    //Socket(const Socket &) = delete;
     Socket &operator=(const Socket &) = delete;
 
 protected:
@@ -20,7 +20,7 @@ public:
     Socket(Socket &&other);
     void closeSocket();
     Socket &operator=(Socket &&other);
-    
+    Socket(const Socket &other);
     /* Operations */
     void connect(struct sockaddr_in *addr, unsigned int len);
 

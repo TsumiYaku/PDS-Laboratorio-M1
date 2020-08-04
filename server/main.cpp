@@ -20,12 +20,12 @@ int main() {
 
     std::cout << "Checksum test" << std::endl;
 
-    std::bitset<32> a(fold.getChecksum().getChecksum());
+    std::bitset<32> a(fold.getChecksum());
     std::cout << a << std::endl;
 
     fold.writeFile(testPath, testBuf, sizeof(testBuf));
 
-    std::bitset<32> b(fold.getChecksum().getChecksum());
+    std::bitset<32> b(fold.getChecksum());
     std::cout << b << std::endl;
 
     // Read/write test

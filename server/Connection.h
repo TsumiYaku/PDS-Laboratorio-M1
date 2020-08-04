@@ -1,5 +1,4 @@
 #pragma once
-
 #include <Socket.h>
 #include <packets/Message.h>
 #include <packets/FileWrapper.h>

@@ -37,6 +37,12 @@ Socket &Socket::operator=(Socket &&other) {
     return *this;
 }
 
+Socket::Socket(const Socket &other) {
+    if(other.sockfd != sockfd){
+        sockfd = other.sockfd;
+    }
+}
+
 void Socket::connect(struct sockaddr_in *addr, unsigned int len) {
     if(::connect(sockfd, reinterpret_cast<struct sockaddr*>(addr), len)!=0)
         throw std::runtime_error("Error during socket connection");
