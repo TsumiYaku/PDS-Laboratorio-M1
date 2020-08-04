@@ -16,6 +16,28 @@ FileWrapper::FileWrapper(filesystem::path filePath, char *data, FileStatus statu
     len = strlen(data);
 }
 
+FileWrapper::FileWrapper(FileWrapper &&other) {
+    filePath = other.filePath;
+    data = other.data;
+    other.data = nullptr;
+    len = other.len;
+    status = other.status;
+}
+
+FileWrapper &FileWrapper::operator=(FileWrapper &&other) noexcept {
+    if (this != &other) {
+        delete [] data;
+
+        filePath == other.filePath;
+        data = other.data;
+        other.data = nullptr;
+        len = other.len;
+        status = other.status;
+    }
+
+    return *this;
+}
+
 filesystem::path FileWrapper::getPath(){
     return filePath;
 }
@@ -33,4 +55,8 @@ void FileWrapper::print(){
 FileStatus FileWrapper::getStatus() {
     return status;
 }
+
+
+
+
 

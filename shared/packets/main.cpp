@@ -18,7 +18,7 @@ int main()
         std::cout<<"FILE MESSAGE SERIALIZE/UNSERIALIZE"<<std::endl;
         char data[] = {'c', 'i', 'a', 'o'};
         FileWrapper f = FileWrapper(path("./prova"), data, FileStatus::created);
-        Message m = Message(f);
+        Message m = Message(std::move(f));
         m.print();
 
         //serialize

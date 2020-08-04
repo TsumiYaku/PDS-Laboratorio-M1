@@ -24,6 +24,12 @@ class FileWrapper {
 public:
     FileWrapper();
     FileWrapper(filesystem::path filePath, char* data, FileStatus status);
+    FileWrapper(FileWrapper&&);
+    FileWrapper& operator=(FileWrapper&&) noexcept ;
+
+    FileWrapper(const FileWrapper&) = delete;
+    FileWrapper& operator=(const FileWrapper&) = delete;
+
     void print();
     filesystem::path getPath();
     char* getData();

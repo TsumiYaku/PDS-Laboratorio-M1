@@ -21,10 +21,15 @@ public:
     Message(MessageType type);
     Message(std::string message);
     Message(FileWrapper file);
+    Message(Message&&);
+    Message& operator=(Message&&) noexcept;
+
+    Message(const Message&) = delete;
+    Message& operator=(const Message&) = delete;
     
     void print();
 
-    FileWrapper getFileWrapper();
+    FileWrapper&& getFileWrapper();
     std::string getMessage();
     MessageType getType();
 
