@@ -284,7 +284,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 //invio file da sincronizzare
                 std::ifstream input(p.relative_path().string());
                 if(input.bad()) {
-                    Message m2 = Message("ERROR_FILE");
+                    Message m2 = Message("ERR");
                     Serializer oa2(ss);
                     m2.serialize(oa2, 0);
                     sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio error_File al server
@@ -322,7 +322,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 if(m.getMessage().compare("ACK") == 0) break;
             }
             else {
-                Message m2 = Message("ERROR_FILE");
+                Message m2 = Message("ERR");
                 Serializer oa2(ss);
                 m2.serialize(oa2, 0);
                 sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio ERROR_FILE al server
