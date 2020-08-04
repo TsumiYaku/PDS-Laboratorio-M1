@@ -110,7 +110,7 @@ void Client::monitoraCartella(std::string p){
             if((checksumServer == 0 && checksumClient != 0) || checksumClient != checksumServer){//invio tutto la directory per sincornizzare
                 //invio richiesta update directory server (fino ad ottenere response ACK
                 Message m = Message("UPDATE");
-                recieveACK(m);
+                recieveACK(std::move(m));
 
                 //invio solo i file con checksum diverso
                 for(filesystem::path path: dir)
@@ -120,7 +120,7 @@ void Client::monitoraCartella(std::string p){
         }
         else if(checksumServer != 0 && checksumClient==0){ 
                 Message m = Message("DOWNLOAD");
-                recieveACK(m);
+                recieveACK(std::move(m));
 
                 downloadDirectory(); //scarico contenuto del server
         }
@@ -133,7 +133,7 @@ void Client::monitoraCartella(std::string p){
                     std::cout << "Created: " << path_to_watch << '\n';
                     //invio richiesta creazione file
                     Message m = Message("CREATE");
-                    recieveACK(m);
+                    recieveACK(std::move(m));
 
                     //invio file
                     inviaFile(path(path_to_watch), FileStatus::created); 
@@ -146,7 +146,7 @@ void Client::monitoraCartella(std::string p){
 
                     //invio richiesta modifica
                     Message m = Message("MODIFY");
-                    recieveACK(m);
+                    recieveACK(std::move(m));
 
                     //invio il file
                     inviaFile(path(path_to_watch), FileStatus::modified);
@@ -158,14 +158,14 @@ void Client::monitoraCartella(std::string p){
                     std::cout << "Erased: " << path_to_watch << '\n';
                     //invio richiesta cancellazione
                     Message m = Message("ERASE");
-                    recieveACK(m);
+                    recieveACK(std::move(m));
                     //invio file
                     inviaFile(path(path_to_watch), FileStatus::erased); 
                 }
                 case FileStatus::nothing:{
                     //nessuna modifica da effettuare
                     Message m = Message("OK");
-                    recieveACK(m);
+                    recieveACK(std::move(m));
                 }
             }
   	    }); 
@@ -175,7 +175,7 @@ void Client::monitoraCartella(std::string p){
 }
 
 
-void Client::recieveACK(Message m){
+void Client::recieveACK(Message&& m){
    char* textMessage;
    std::stringstream ss;
    Serializer oa(ss);
@@ -230,7 +230,7 @@ void Client::downloadDirectory(){
 
 void Client::inviaFile(filesystem::path p, FileStatus status) /*throw (std::runtime_error, filesystem::filesystem_error)*/{
     Message m = Message("CHECK");
-    recieveACK(m);
+    recieveACK(std::move(m));
     int checksumServer = 0, checksumClient = getChecksum(p).getChecksum();
     std::stringstream ss;
     Serializer oa(ss);
@@ -260,7 +260,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
             if(is_directory(p)){
                 //invio directory da sincronizzare
                 FileWrapper f = FileWrapper(p, strdup(""), status);
-                Message m = Message(f);
+                Message m = Message(std::move(f));
                 Serializer oa(ss);
                 m.serialize(oa, 0);
                 sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);
@@ -300,7 +300,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
 
                 char* data = strdup(sstr.str().c_str());
                 FileWrapper f = FileWrapper(p, data, status);
-                Message m = Message(f);
+                Message m = Message(std::move(f));
                 Serializer oa2(ss);
                 m.serialize(oa2, 0);
                 sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0); 
@@ -331,7 +331,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
         }
         //ho finito di inviare file
         Message m = Message("END");
-        recieveACK(m);
+        recieveACK(std::move(m));
     });
     synch.detach();
 }
