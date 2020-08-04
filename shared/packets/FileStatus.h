@@ -1,4 +1,4 @@
 #pragma once
 
-enum class FileStatus {created, modified, erased};
+enum class FileStatus {created, modified, erased, nothing};
 

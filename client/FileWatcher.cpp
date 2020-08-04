@@ -30,7 +30,11 @@ void FileWatcher::start(const std::function<void (std::string, FileStatus)> &act
              if(paths[file.path().string()] != current_file_last_write_time) {
                  paths[file.path().string()] = current_file_last_write_time;
                  action(file.path().string(), FileStatus::modified);
+             }else
+             {
+                  action(file.path().string(), FileStatus::nothing);
              }
+             
          }
      }
 }

@@ -162,6 +162,11 @@ void Client::monitoraCartella(std::string p){
                     //invio file
                     inviaFile(path(path_to_watch), FileStatus::erased); 
                 }
+                case FileStatus::nothing:{
+                    //nessuna modifica da effettuare
+                    Message m = Message("OK");
+                    recieveACK(m);
+                }
             }
   	    }); 
     });
@@ -230,15 +235,22 @@ void Client::inviaFile(filesystem::path p, FileStatus status) /*throw (std::runt
     std::stringstream ss;
     Serializer oa(ss);
     m.serialize(oa, 0);
-    sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio richiesta di checsum a server
+    sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio richiesta di checksum a server
     sock.read(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
+    //invio ACK arrivo checksum
+    m = Message("ACK");
+    Serializer oa2(ss);
+    m.serialize(oa2, 0);
+    sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio ACK al server
+
+    //controllo checksum ed eventuale sincro
     if(checksumClient != checksumServer){
         sincronizzaFile(p.relative_path().string(), status);
     }
 }
 
 void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*throw(filesystem::filesystem_error, std::runtime_error)*/{
-    std::thread synch( [this, path_to_watch, status] () -> void {
+    std::thread synch([this, path_to_watch, status] () -> void {
         //std::lock_guard<std::mutex> lg(this->mu);
 
         path p(path_to_watch);
@@ -259,15 +271,33 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 m = Message(MessageType::text);
                 Deserializer ia(ss);
                 m.unserialize(ia, 0);
-                if(m.getMessage().compare("ACK") == 0) break;
 
+                //invio ACK arrivo checksum
+                Message m2 = Message("ACK");
+                Serializer oa2(ss);
+                m2.serialize(oa2, 0);
+                sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio ACK al server
+
+                //leggo messaggio da server
+                if(m.getMessage().compare("ACK") == 0) break;
             }else if(is_regular_file(p)){
                 //invio file da sincronizzare
                 std::ifstream input(p.relative_path().string());
-                if(input.bad()) throw std::runtime_error("Error reading file"); 
+                if(input.bad()) {
+                    Message m2 = Message("ERROR_FILE");
+                    Serializer oa2(ss);
+                    m2.serialize(oa2, 0);
+                    sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio error_File al server
+                    throw std::runtime_error("Error reading file"); 
+                }
+    
                 std::stringstream sstr;
-                while(input >> sstr.rdbuf()){} //read all content of file
+                int size=0;
+                while(input >> sstr.rdbuf()){
+                    size += sstr.str().length();
+                } //read all content of file
                 input.close();
+
                 char* data = strdup(sstr.str().c_str());
                 FileWrapper f = FileWrapper(p, data, status);
                 Message m = Message(f);
@@ -281,9 +311,23 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 m = Message(MessageType::text);
                 Deserializer ia2(ss);
                 m.unserialize(ia2, 0);
+
+                //invio ACK arrivo checksum
+                Message m2 = Message("ACK");
+                Serializer oa3(ss);
+                m2.serialize(oa3, 0);
+                sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio ACK al server
+
+                //leggo ACK
                 if(m.getMessage().compare("ACK") == 0) break;
             }
-            else throw std::runtime_error("file not supported");
+            else {
+                Message m2 = Message("ERROR_FILE");
+                Serializer oa2(ss);
+                m2.serialize(oa2, 0);
+                sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio ERROR_FILE al server
+                throw std::runtime_error("file not supported");
+            }
         }
         //ho finito di inviare file
         Message m = Message("END");
