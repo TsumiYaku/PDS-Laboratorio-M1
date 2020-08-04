@@ -200,10 +200,10 @@ void Client::downloadDirectory(){
             //read file (server send file after as soon as send ACK) 
             sock.read(textMessage, sizeof(textMessage), 0);
             ss << textMessage;
-            //read file Message or text "TERMINATED" (not using Message wrapper)
-            if(ss.str().compare("TERMINATED") == 0) break;
-
-            Message m = Message(MessageType::file); 
+            Message m = Message(MessageType::text);
+            //read file Message or text "END" (not using Message wrapper)
+            if ( m.getMessage() == "END") break;
+            m = Message(MessageType::file); 
             Deserializer ia(ss);
             m.unserialize(ia, 0);
             FileWrapper f = m.getFileWrapper();
