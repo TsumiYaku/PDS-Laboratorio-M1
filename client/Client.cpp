@@ -61,14 +61,14 @@ void Client::sendMessage(Message &&m) {
     // Socket write
     std::string s(sstream.str());
     log("Message send:" + m.getMessage());
-    sock.write(s.c_str(), sizeof(s.c_str()), 0);
+    sock.write(s.c_str(), strlen(s.c_str())+1, 0);
 }
 
 Message&& Client::awaitMessage(size_t msg_size = 1024) {
     // Socket read
     char buf[msg_size];
-    int size = sock.read(buf, sizeof(buf), 0);
-
+    int size = sock.read(buf, msg_size, 0);
+    std::cout << buf << " " << size << std::endl;
     // Unserialization
     std::stringstream sstream;
     sstream << buf;

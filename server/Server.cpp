@@ -25,7 +25,7 @@ void Server::run() {
         Socket s = ss.accept(&addr, &len);
         char name[16];
         if(inet_ntop(AF_INET, &addr.sin_addr, name, sizeof(name)) == nullptr) throw std::runtime_error("Error during address name conversion");
-        std::cout << "Client " << name << ":" << ntohs(addr.sin_port) << "connected" << std::endl;
+        std::cout << "Client " << name << ":" << ntohs(addr.sin_port) << " connected" << std::endl;
 
         // Adds the connection to the thread pool's queue
         Connection conn(std::move(s));

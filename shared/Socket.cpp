@@ -17,19 +17,25 @@ Socket::Socket() {
 
 Socket::~Socket() {
     if (sockfd > 0) {
-        std::cout << "Closing socket " << sockfd;
+        std::cout << "Closing socket " << sockfd <<std::endl;
         close(sockfd);
     }
 }
 
 Socket::Socket(Socket &&other) {
-    this->sockfd = other.sockfd;
+    if (sockfd > 0) close(sockfd);
+    sockfd = other.sockfd;
+    //other.closeSocket();
+    other.sockfd = 0;
+    std::cout <<"SOCKET MOVE 2"<<std::endl;
 }
 
 Socket &Socket::operator=(Socket &&other) {
     if (sockfd > 0) close(sockfd);
     sockfd = other.sockfd;
+    //other.closeSocket();
     other.sockfd = 0;
+    std::cout <<"SOCKET MOVE"<<std::endl;
     return *this;
 }
 
@@ -74,7 +80,7 @@ ssize_t Socket::read(int* val, size_t len, int options) {
 //close socket
 void Socket::closeSocket() {
     if (sockfd > 0) {
-        std::cout << "Closing socket " << sockfd;
+        std::cout << "Closing socket " << sockfd <<std::endl;
         close(sockfd);
     }
 }

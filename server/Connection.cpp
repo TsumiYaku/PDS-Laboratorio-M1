@@ -1,12 +1,14 @@
 #include "Connection.h"
 
-Connection::Connection(Socket&& socket): socket(std::move(socket)) {}
+Connection::Connection(Socket&& socket) {
+     this->socket = std::move(socket);
+}
 
 Message&& Connection::awaitMessage(size_t msg_size = 1024) {
     // Socket read
     char buf[msg_size];
-    int size = socket.read(buf, sizeof(buf), 0);
-
+    int size = socket.read(buf, msg_size, 0);
+    std::cout << buf << " " << size << std::endl;
     // Unserialization
     std::stringstream sstream;
     sstream << buf;
@@ -40,7 +42,7 @@ void Connection::sendMessage(Message &&m) {
 
     // Socket write
     std::string s(sstream.str());
-    socket.write(s.c_str(), sizeof(s.c_str()), 0);
+    socket.write(s.c_str(), strlen(s.c_str())+1, 0);
 }
 
 void Connection::run() {
@@ -214,6 +216,7 @@ Connection::Connection(Connection &&other) {
     other.f = nullptr;
     logged = other.logged;
     terminate = other.terminate;
+    std::cout <<"CONNECTION MOVE 2"<<std::endl;
 }
 
 Connection &Connection::operator=(Connection &&other) {
@@ -224,6 +227,7 @@ Connection &Connection::operator=(Connection &&other) {
         other.f = nullptr;
         logged = other.logged;
         terminate = other.terminate;
+        std::cout <<"CONNECTION MOVE"<<std::endl;
     }
     return *this;
 }
