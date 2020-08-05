@@ -34,7 +34,7 @@ class Client{
 
     Socket sock;
     ClientStatus status;
-    static std::mutex mu;
+    std::mutex mu;
 
     //std::string username;
     //std::string password;
@@ -49,7 +49,9 @@ class Client{
     void downloadDirectory(); //scarica il contenuto inviato dal server fino alla recezione del messagio END
     std::string readline(); //legge una riga da command line del client
     void sincronizzaFile(std::string path_, FileStatus status); //invia directory/file modificata al server in modalità asincrona (thread separato)
-    
+    void sendMessage(Message&&);
+    Message&& awaitMessage(size_t);
+
 public:
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
@@ -57,7 +59,7 @@ public:
     ~Client();
     
     void close(); //chiude client
-    void recieveACK(Message&& m); //ricezione di un messaggio ACK
+    //void recieveACK(Message&& m); //ricezione di un messaggio ACK
     bool doLogin(std::string user, std::string password); //effettua login. restituisce true se si è effettuato logi da server o false se user o psw è errata
     void monitoraCartella(std::string path); //client in connessione con server e in ascolto per backup
 };
