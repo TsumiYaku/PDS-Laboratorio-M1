@@ -4,6 +4,7 @@
 #include "Folder.h"
 #include <boost/asio.hpp>
 #include <packets/FileWrapper.h>
+#include "Server.h"
 
 using namespace boost;
 using std::ios;
