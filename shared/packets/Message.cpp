@@ -44,7 +44,7 @@ void Message::print(){
     }
 }
 
-FileWrapper&& Message::getFileWrapper(){
+FileWrapper Message::getFileWrapper(){
     if(type == MessageType::file)
        return std::move(file);
     return FileWrapper();

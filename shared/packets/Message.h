@@ -29,7 +29,7 @@ public:
     
     void print();
 
-    FileWrapper&& getFileWrapper();
+    FileWrapper2 getFileWrapper();
     std::string getMessage();
     MessageType getType();
 
