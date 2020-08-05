@@ -9,7 +9,7 @@ using namespace boost;
 using std::ios;
 
 int main() {
-    Folder fold = Folder("Test", "Test");
+    /*Folder fold = Folder("Test", "Test");
 
     char testBuf[] = {'T', 'e', 's', 't'};
 
@@ -51,6 +51,8 @@ int main() {
     readBuf = new char[fileSize];
     fold.readFile(testPath, readBuf, fileSize);
 
-    std::cout << "Buffer after read/write 2: " << readBuf << std::endl;
+    std::cout << "Buffer after read/write 2: " << readBuf << std::endl;*/
+    Server s(8000);
+    s.run();
 
 }
