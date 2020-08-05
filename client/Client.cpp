@@ -52,7 +52,33 @@ Client::Client(int socket, std::string address, int port): address(address), por
         sock.connect(sad, sizeof(sad));
 }
 
-std::string Client::readline(){ //username o directory
+void Client::sendMessage(Message &&m) {
+    // Serialization
+    std::stringstream sstream;
+    Serializer oa(sstream);
+    m.serialize(oa, 0);
+
+    // Socket write
+    std::string s(sstream.str());
+    sock.write(s.c_str(), sizeof(s.c_str()), 0);
+}
+
+Message&& Client::awaitMessage(size_t msg_size = 1024) {
+    // Socket read
+    char buf[msg_size];
+    int size = sock.read(buf, sizeof(buf), 0);
+
+    // Unserialization
+    std::stringstream sstream;
+    sstream << buf;
+    Deserializer ia(sstream);
+    Message m(MessageType::text);
+    m.unserialize(ia, 0);
+
+    return std::move(m);
+}
+
+/*std::string Client::readline(){ //username o directory
      std::string buffer;
      char c;
      while(sock.read(&c, 1, 0)){
@@ -61,7 +87,7 @@ std::string Client::readline(){ //username o directory
         else if(c |= '\r') buffer += c;
         }
      return std::string("");
-}
+}*/
 
 void Client::close() /*throw(std::runtime_error)*/{
     status = closed;
@@ -73,20 +99,15 @@ Client::~Client(){
 }
 
 bool Client::doLogin(std::string user, std::string password){
-    Message m = Message("LOGIN_" + user + "_" + password);
-    char* textMessage;
-    std::stringstream ss;
-    Serializer oa2(ss);
-    m.serialize(oa2, 0);
+   
+    Message m = Message(MessageType::text);
     while(true){
-        //invio user password
-        sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio richiesta di login a server
+        m = Message("LOGIN_" + user + "_" + password);
+        sendMessage(std::move(m));
 
         //read response
-        sock.read(textMessage, sizeof(textMessage), 0);
-        ss << textMessage;
-        Deserializer oa(ss);
-        m = Message(MessageType::text);
+        m = awaitMessage();
+
         if(m.getMessage().compare("OK") == 0 || m.getMessage().compare("NOT_OK") == 0) break;
     }
     if(m.getMessage().compare("OK") == 0) //login effettuato con successo
@@ -96,21 +117,35 @@ bool Client::doLogin(std::string user, std::string password){
 
 void Client::monitoraCartella(std::string p){
     std::thread controllaDirectory([this, p]() -> void {
-        //std::lock_guard<std::mutex> lg(this->mu);
+        std::lock_guard<std::mutex> lg(this->mu);
         path dir(p);
-        Message m = Message("SYNC");
+
+        while(true){
+            Message m = Message("SYNC");
+            sendMessage(std::move(m));
+
+            //read response
+            m = awaitMessage();
+
+            if(m.getMessage().compare("ACK") == 0) break;
+        }
+        
         int checksumServer = 0, checksumClient = getChecksum(dir).getChecksum();
-        std::stringstream ss;
-        Serializer oa(ss);
-        m.serialize(oa, 0);
-        sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio richiesta di sincronizzazione a server
+        
         sock.read(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
        
         if(exists(dir)){ //la cartella esiste e quindi la invio al server  
-            if((checksumServer == 0 && checksumClient != 0) || checksumClient != checksumServer){//invio tutto la directory per sincornizzare
-                //invio richiesta update directory server (fino ad ottenere response ACK
-                Message m = Message("UPDATE");
-                recieveACK(std::move(m));
+            if((checksumServer == 0 && checksumClient != 0) || checksumClient != checksumServer){//invio tutta la directory per sincornizzare
+                //invio richiesta update directory server (fino ad ottenere response ACK)
+                while(true){
+                    Message m = Message("UPDATE");
+                    sendMessage(std::move(m));
+
+                    //read response
+                    m = awaitMessage();
+
+                    if(m.getMessage().compare("ACK") == 0) break;
+                }
 
                 //invio solo i file con checksum diverso
                 for(filesystem::path path: dir)
@@ -119,10 +154,17 @@ void Client::monitoraCartella(std::string p){
             }
         }
         else if(checksumServer != 0 && checksumClient==0){ 
+            while(true){
                 Message m = Message("DOWNLOAD");
-                recieveACK(std::move(m));
+                sendMessage(std::move(m));
 
-                downloadDirectory(); //scarico contenuto del server
+                //read response
+                m = awaitMessage();
+
+                if(m.getMessage().compare("ACK") == 0) break;
+            }
+
+            downloadDirectory(); //scarico contenuto del server
         }
 
         //mi metto in ascolto e attendo una modifica
@@ -132,8 +174,15 @@ void Client::monitoraCartella(std::string p){
                 case FileStatus::created:{
                     std::cout << "Created: " << path_to_watch << '\n';
                     //invio richiesta creazione file
-                    Message m = Message("CREATE");
-                    recieveACK(std::move(m));
+                    while(true){
+                        Message m = Message("CREATE");
+                        sendMessage(std::move(m));
+
+                        //read response
+                        m = awaitMessage();
+
+                        if(m.getMessage().compare("ACK") == 0) break;
+                    }
 
                     //invio file
                     inviaFile(path(path_to_watch), FileStatus::created); 
@@ -145,8 +194,15 @@ void Client::monitoraCartella(std::string p){
                     std::cout << "Modified: " << path_to_watch << '\n';
 
                     //invio richiesta modifica
-                    Message m = Message("MODIFY");
-                    recieveACK(std::move(m));
+                    while(true){
+                        Message m = Message("MODIFY");
+                        sendMessage(std::move(m));
+
+                        //read response
+                        m = awaitMessage();
+
+                        if(m.getMessage().compare("ACK") == 0) break;
+                    }           
 
                     //invio il file
                     inviaFile(path(path_to_watch), FileStatus::modified);
@@ -157,15 +213,23 @@ void Client::monitoraCartella(std::string p){
                 //dico al server che è stato modificato un file e lo invio al server
                     std::cout << "Erased: " << path_to_watch << '\n';
                     //invio richiesta cancellazione
-                    Message m = Message("ERASE");
-                    recieveACK(std::move(m));
+                    while(true){
+                        Message m = Message("ERASE");
+                        sendMessage(std::move(m));
+
+                        //read response
+                        m = awaitMessage();
+
+                        if(m.getMessage().compare("ACK") == 0) break;
+                    }
                     //invio file
                     inviaFile(path(path_to_watch), FileStatus::erased); 
                 }
                 case FileStatus::nothing:{
                     //nessuna modifica da effettuare
                     Message m = Message("OK");
-                    recieveACK(std::move(m));
+                    sendMessage(std::move(m));
+
                 }
             }
   	    }); 
@@ -175,38 +239,26 @@ void Client::monitoraCartella(std::string p){
 }
 
 
-void Client::recieveACK(Message&& m){
-   char* textMessage;
-   std::stringstream ss;
-   Serializer oa(ss);
-   m.serialize(oa, 0);
-   while(true){
-        sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio richiesta di modifica file a server
-        sock.read(textMessage, sizeof(textMessage), 0);
-        ss << textMessage;
-        Deserializer oa(ss);
-        Message m2 = Message(MessageType::text);
-        if(m2.getMessage().compare("ACK") == 0) break;
-   }
-}
-
 void Client::downloadDirectory(){
     std::thread download([this]() -> void{
-        //std::lock_guard<std::mutex> lg(this->mu);
+        std::lock_guard<std::mutex> lg(this->mu);
         char* textMessage;
         std::stringstream ss;
-
+        char buf[1024];
         while(true){
-            //read file (server send file after as soon as send ACK) 
-            sock.read(textMessage, sizeof(textMessage), 0);
-            ss << textMessage;
-            //read file Message or text "TERMINATED" (not using Message wrapper)
-            if(ss.str().compare("TERMINATED") == 0) break;
-
-            Message m = Message(MessageType::file); 
-            Deserializer ia(ss);
+            //read message (server send file as soon as sending ACK)  
+            
+            int size = sock.read(buf, sizeof(buf), 0);
+            if (strcmp(buf,"END") == 0) break; //send END in chiaro (non serializato) per riconoscere il tipo di messaggio
+            
+            // Unserialization
+            std::stringstream sstream;
+            sstream << buf;
+            Deserializer ia(sstream);
+            Message m(MessageType::file);
             m.unserialize(ia, 0);
             FileWrapper f = m.getFileWrapper();
+
             for(filesystem::path path: f.getPath()){
                 if(is_directory(path))
                     create_directory(path);
@@ -219,9 +271,7 @@ void Client::downloadDirectory(){
                 }
             }
             m = Message("ACK");
-            Serializer oa(ss);
-            m.serialize(oa, 0);
-            sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio ACK al server
+            sendMessage(std::move(m));
         };
     });
     download.detach();
@@ -229,19 +279,20 @@ void Client::downloadDirectory(){
 
 
 void Client::inviaFile(filesystem::path p, FileStatus status) /*throw (std::runtime_error, filesystem::filesystem_error)*/{
-    Message m = Message("CHECK");
-    recieveACK(std::move(m));
+    while(true){
+        Message m = Message("CHECK");
+        sendMessage(std::move(m));
+        m = awaitMessage();
+        if(m.getMessage().compare("ACK") == 0) break;
+    }
+
     int checksumServer = 0, checksumClient = getChecksum(p).getChecksum();
-    std::stringstream ss;
-    Serializer oa(ss);
-    m.serialize(oa, 0);
-    sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio richiesta di checksum a server
-    sock.read(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
-    //invio ACK arrivo checksum
-    m = Message("ACK");
-    Serializer oa2(ss);
-    m.serialize(oa2, 0);
-    sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio ACK al server
+
+    sock.read(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum intero da server
+
+    //invio ACK all'arrivo checksum
+    Message m = Message("ACK");
+    sendMessage(std::move(m));//invio ACK al server
 
     //controllo checksum ed eventuale sincro
     if(checksumClient != checksumServer){
@@ -261,33 +312,23 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 //invio directory da sincronizzare
                 FileWrapper f = FileWrapper(p, strdup(""), status);
                 Message m = Message(std::move(f));
-                Serializer oa(ss);
-                m.serialize(oa, 0);
-                sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);
+                sendMessage(std::move(m));
 
                 //ricevo response
-                sock.read(response, sizeof(response), 0);
-                ss << response;
-                m = Message(MessageType::text);
-                Deserializer ia(ss);
-                m.unserialize(ia, 0);
-
-                //invio ACK arrivo checksum
+                m = awaitMessage();
+               
                 Message m2 = Message("ACK");
-                Serializer oa2(ss);
-                m2.serialize(oa2, 0);
-                sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio ACK al server
+                sendMessage(std::move(m2));
 
                 //leggo messaggio da server
                 if(m.getMessage().compare("ACK") == 0) break;
+
             }else if(is_regular_file(p)){
                 //invio file da sincronizzare
                 std::ifstream input(p.relative_path().string());
                 if(input.bad()) {
-                    Message m2 = Message("ERROR_FILE");
-                    Serializer oa2(ss);
-                    m2.serialize(oa2, 0);
-                    sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio error_File al server
+                    Message m = Message("ERR");
+                    sendMessage(std::move(m));
                     throw std::runtime_error("Error reading file"); 
                 }
     
@@ -295,44 +336,37 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 int size=0;
                 while(input >> sstr.rdbuf()){
                     size += sstr.str().length();
-                } //read all content of file
+                } 
                 input.close();
 
                 char* data = strdup(sstr.str().c_str());
                 FileWrapper f = FileWrapper(p, data, status);
                 Message m = Message(std::move(f));
-                Serializer oa2(ss);
-                m.serialize(oa2, 0);
-                sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0); 
+                sendMessage(std::move(m));
 
                 //ricevo response
-                sock.read(response, sizeof(response), 0);
-                ss << response;
-                m = Message(MessageType::text);
-                Deserializer ia2(ss);
-                m.unserialize(ia2, 0);
+                m = awaitMessage();
 
                 //invio ACK arrivo checksum
                 Message m2 = Message("ACK");
-                Serializer oa3(ss);
-                m2.serialize(oa3, 0);
-                sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio ACK al server
+                sendMessage(std::move(m2));
 
                 //leggo ACK
                 if(m.getMessage().compare("ACK") == 0) break;
             }
             else {
-                Message m2 = Message("ERROR_FILE");
-                Serializer oa2(ss);
-                m2.serialize(oa2, 0);
-                sock.write(ss.str().c_str(), strlen(ss.str().c_str())+1, 0);//invio ERROR_FILE al server
+                Message m2 = Message("ERR");
+                sendMessage(std::move(m2));
                 throw std::runtime_error("file not supported");
             }
         }
         //ho finito di inviare file
-        Message m = Message("END");
-        recieveACK(std::move(m));
+        while(true){
+            Message m = Message("END");
+            sendMessage(std::move(m));
+            m = awaitMessage();
+            if(m.getMessage().compare("ACK") == 0) break;
+        }
     });
     synch.detach();
 }
-
