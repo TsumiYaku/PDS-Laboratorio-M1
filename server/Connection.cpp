@@ -20,7 +20,7 @@ Message Connection::awaitMessage(size_t msg_size = 1024) {
     if (logged)
         std::cout << "Received message from user: " << username << std::endl;
     if(m.getType() == MessageType::text)
-        std::cout << "Message: " << m.getMessage() << std::endl;
+        std::cout << "Message received: " << m.getMessage() << std::endl;
     else
         std::cout << "Incoming file..." << std::endl;
 
@@ -32,7 +32,7 @@ void Connection::sendMessage(Message &&m) {
     if (logged)
         std::cout << "Sending message to user: " << username << std::endl;
     if(m.getType() == MessageType::text)
-        std::cout << "Message: " << m.getMessage() << std::endl;
+        std::cout << "Message sent: " << m.getMessage() << std::endl;
     else
         std::cout << "Sending file..." << std::endl;
 
@@ -56,8 +56,6 @@ void Connection::run() {
         sendMessage(Message("NOT_OK"));
         return;
     } else {
-        sendMessage(Message("OK"));
-
         // Extract username from login msg
         std::string msg = m.getMessage();
         int first, second;
@@ -68,6 +66,7 @@ void Connection::run() {
         f = new Folder(username, username);
 
         std::cout << "User " << username << " successfully authenticated" << std::endl;
+        sendMessage(Message("OK"));
     }
 
     listenPackets();
