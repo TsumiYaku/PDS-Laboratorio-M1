@@ -47,7 +47,7 @@ Client::Client(std::string address, int port): address(address), port(port), sta
         sockaddrIn.sin_family = AF_INET;
         if(::inet_pton(AF_INET, address.c_str(), &sockaddrIn.sin_addr) <=0)
             throw std::runtime_error("error inet_ptn");
-        sock = Socket();
+        //sock = Socket();
         
         sock.connect(&sockaddrIn, sizeof(sockaddrIn));
 }
