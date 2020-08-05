@@ -63,7 +63,7 @@ void Client::sendMessage(Message &&m) {
     sock.write(s.c_str(), sizeof(s.c_str()), 0);
 }
 
-Message&& Client::awaitMessage(size_t msg_size = 1024) {
+Message&& Client::awaitMessage(size_t msg_size = 1024, MessageType type) {
     // Socket read
     char buf[msg_size];
     int size = sock.read(buf, sizeof(buf), 0);
@@ -72,7 +72,7 @@ Message&& Client::awaitMessage(size_t msg_size = 1024) {
     std::stringstream sstream;
     sstream << buf;
     Deserializer ia(sstream);
-    Message m(MessageType::text);
+    Message m(type);
     m.unserialize(ia, 0);
 
     return std::move(m);
@@ -106,7 +106,7 @@ bool Client::doLogin(std::string user, std::string password){
         sendMessage(std::move(m));
 
         //read response
-        m = awaitMessage();
+        m = awaitMessage(MessageType::text);
 
         if(m.getMessage().compare("OK") == 0 || m.getMessage().compare("NOT_OK") == 0) break;
     }
@@ -125,7 +125,7 @@ void Client::monitoraCartella(std::string p){
             sendMessage(std::move(m));
 
             //read response
-            m = awaitMessage();
+            m = awaitMessage(MessageType::text);
 
             if(m.getMessage().compare("ACK") == 0) break;
         }
@@ -135,14 +135,14 @@ void Client::monitoraCartella(std::string p){
         sock.read(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
        
         if(exists(dir)){ //la cartella esiste e quindi la invio al server  
-            if((checksumServer == 0 && checksumClient != 0) || checksumClient != checksumServer){//invio tutto la directory per sincornizzare
-                //invio richiesta update directory server (fino ad ottenere response ACK
+            if((checksumServer == 0 && checksumClient != 0) || checksumClient != checksumServer){//invio tutta la directory per sincornizzare
+                //invio richiesta update directory server (fino ad ottenere response ACK)
                 while(true){
                     Message m = Message("UPDATE");
                     sendMessage(std::move(m));
 
                     //read response
-                    m = awaitMessage();
+                    m = awaitMessage(MessageType::text);
 
                     if(m.getMessage().compare("ACK") == 0) break;
                 }
@@ -159,7 +159,7 @@ void Client::monitoraCartella(std::string p){
                 sendMessage(std::move(m));
 
                 //read response
-                m = awaitMessage();
+                m = awaitMessage(MessageType::text);
 
                 if(m.getMessage().compare("ACK") == 0) break;
             }
@@ -179,7 +179,7 @@ void Client::monitoraCartella(std::string p){
                         sendMessage(std::move(m));
 
                         //read response
-                        m = awaitMessage();
+                        m = awaitMessage(MessageType::text);
 
                         if(m.getMessage().compare("ACK") == 0) break;
                     }
@@ -199,7 +199,7 @@ void Client::monitoraCartella(std::string p){
                         sendMessage(std::move(m));
 
                         //read response
-                        m = awaitMessage();
+                        m = awaitMessage(MessageType::text);
 
                         if(m.getMessage().compare("ACK") == 0) break;
                     }           
@@ -218,7 +218,7 @@ void Client::monitoraCartella(std::string p){
                         sendMessage(std::move(m));
 
                         //read response
-                        m = awaitMessage();
+                        m = awaitMessage(MessageType::text);
 
                         if(m.getMessage().compare("ACK") == 0) break;
                     }
@@ -246,16 +246,17 @@ void Client::downloadDirectory(){
         std::stringstream ss;
         char buf[1024];
         while(true){
-            //read file (server send file after as soon as send ACK) 
-            Message m = awaitMessage();
-
-            //read file Message or text "END" (not using Message wrapper)
-            if (m.getMessage().compare("END") == 0) break;
-            std::stringstream ss;
-            ss << m.getMessage(); //se è un file contiene testo archivio serializzato (se lo è stato)
-
-            m = Message(MessageType::file); 
-            Deserializer ia(ss);
+            //read message (server send file as soon as sending ACK)  
+            
+            char buf[msg_size];
+            int size = sock.read(buf, sizeof(buf), 0);
+            if (strcmp(buf,"END") == 0) break; //send END in chiaro (non serializato) per riconoscere il tipo di messaggio
+            
+            // Unserialization
+            std::stringstream sstream;
+            sstream << buf;
+            Deserializer ia(sstream);
+            Message m(MessageType::file);
             m.unserialize(ia, 0);
             FileWrapper f = m.getFileWrapper();
 
@@ -282,7 +283,7 @@ void Client::inviaFile(filesystem::path p, FileStatus status) /*throw (std::runt
     while(true){
         Message m = Message("CHECK");
         sendMessage(std::move(m));
-        m = awaitMessage();
+        m = awaitMessage(MessageType::text);
         if(m.getMessage().compare("ACK") == 0) break;
     }
 
@@ -315,7 +316,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 sendMessage(std::move(m));
 
                 //ricevo response
-                m = awaitMessage();
+                m = awaitMessage(MessageType::text);
                
                 Message m2 = Message("ACK");
                 sendMessage(std::move(m2));
@@ -345,7 +346,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 sendMessage(std::move(m));
 
                 //ricevo response
-                m = awaitMessage();
+                m = awaitMessage(MessageType::text);
 
                 //invio ACK arrivo checksum
                 Message m2 = Message("ACK");
@@ -364,7 +365,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
         while(true){
             Message m = Message("END");
             sendMessage(std::move(m));
-            m = awaitMessage();
+            m = awaitMessage(MessageType::text);
             if(m.getMessage().compare("ACK") == 0) break;
         }
     });
