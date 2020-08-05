@@ -248,7 +248,6 @@ void Client::downloadDirectory(){
         while(true){
             //read message (server send file as soon as sending ACK)  
             
-            char buf[msg_size];
             int size = sock.read(buf, sizeof(buf), 0);
             if (strcmp(buf,"END") == 0) break; //send END in chiaro (non serializato) per riconoscere il tipo di messaggio
             
