@@ -1,6 +1,6 @@
 #include "Connection.h"
 
-Connection::Connection(Socket socket): socket(std::move(socket)) {}
+Connection::Connection(Socket&& socket): socket(std::move(socket)) {}
 
 Message&& Connection::awaitMessage(size_t msg_size = 1024) {
     // Socket read
@@ -206,5 +206,28 @@ void Connection::receiveFile() {
 
     sendMessage(Message("ACK"));
 }
+
+Connection::Connection(Connection &&other) {
+    socket = std::move(other.socket);
+    username = std::move(other.username);
+    f = other.f;
+    other.f = nullptr;
+    logged = other.logged;
+    terminate = other.terminate;
+}
+
+Connection &Connection::operator=(Connection &&other) {
+    if (this != &other) {
+        socket = std::move(other.socket);
+        username = std::move(other.username);
+        f = other.f;
+        other.f = nullptr;
+        logged = other.logged;
+        terminate = other.terminate;
+    }
+    return *this;
+}
+
+
 
 

@@ -27,7 +27,7 @@ class Server {
 
 private:
     static void handleConnection(Server* server); // called by threads in the pool during init
-    void enqueueConnection(const Connection& conn); // adds a socket to wait in queue
+    void enqueueConnection(Connection&& conn); // adds a socket to wait in queue
     Connection dequeueConnection(); // remove a socket from waiting in queue
 
 public:

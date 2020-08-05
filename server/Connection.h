@@ -24,7 +24,10 @@ private:
     void listenPackets();
 
 public:
-    Connection(Socket socket);
+    Connection(Socket&& socket);
+    Connection(const Connection&) = delete;
+    Connection(Connection&&);
+    Connection& operator=(Connection&&);
 
     void run();
 

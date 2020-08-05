@@ -29,13 +29,13 @@ void Server::run() {
 
         // Adds the connection to the thread pool's queue
         Connection conn(std::move(s));
-        enqueueConnection(conn);
+        enqueueConnection(std::move(conn));
     }
 }
 
-void Server::enqueueConnection(const Connection& conn) {
+void Server::enqueueConnection(Connection&& conn) {
     std::lock_guard<std::mutex> lg(pool_m);
-    connections.push(conn);
+    connections.push(std::move(conn));
     pool_cv.notify_all(); // notify threads that a new connection is ready to be handled
 }
 
