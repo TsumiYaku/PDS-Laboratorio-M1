@@ -63,7 +63,7 @@ void Client::sendMessage(Message &&m) {
     sock.write(s.c_str(), sizeof(s.c_str()), 0);
 }
 
-Message&& Client::awaitMessage(size_t msg_size = 1024, MessageType type) {
+Message&& Client::awaitMessage(size_t msg_size = 1024) {
     // Socket read
     char buf[msg_size];
     int size = sock.read(buf, sizeof(buf), 0);
@@ -72,7 +72,7 @@ Message&& Client::awaitMessage(size_t msg_size = 1024, MessageType type) {
     std::stringstream sstream;
     sstream << buf;
     Deserializer ia(sstream);
-    Message m(type);
+    Message m(MessageType::text);
     m.unserialize(ia, 0);
 
     return std::move(m);
@@ -106,7 +106,7 @@ bool Client::doLogin(std::string user, std::string password){
         sendMessage(std::move(m));
 
         //read response
-        m = awaitMessage(MessageType::text);
+        m = awaitMessage();
 
         if(m.getMessage().compare("OK") == 0 || m.getMessage().compare("NOT_OK") == 0) break;
     }
@@ -125,7 +125,7 @@ void Client::monitoraCartella(std::string p){
             sendMessage(std::move(m));
 
             //read response
-            m = awaitMessage(MessageType::text);
+            m = awaitMessage();
 
             if(m.getMessage().compare("ACK") == 0) break;
         }
@@ -142,7 +142,7 @@ void Client::monitoraCartella(std::string p){
                     sendMessage(std::move(m));
 
                     //read response
-                    m = awaitMessage(MessageType::text);
+                    m = awaitMessage();
 
                     if(m.getMessage().compare("ACK") == 0) break;
                 }
@@ -159,7 +159,7 @@ void Client::monitoraCartella(std::string p){
                 sendMessage(std::move(m));
 
                 //read response
-                m = awaitMessage(MessageType::text);
+                m = awaitMessage();
 
                 if(m.getMessage().compare("ACK") == 0) break;
             }
@@ -179,7 +179,7 @@ void Client::monitoraCartella(std::string p){
                         sendMessage(std::move(m));
 
                         //read response
-                        m = awaitMessage(MessageType::text);
+                        m = awaitMessage();
 
                         if(m.getMessage().compare("ACK") == 0) break;
                     }
@@ -199,7 +199,7 @@ void Client::monitoraCartella(std::string p){
                         sendMessage(std::move(m));
 
                         //read response
-                        m = awaitMessage(MessageType::text);
+                        m = awaitMessage();
 
                         if(m.getMessage().compare("ACK") == 0) break;
                     }           
@@ -218,7 +218,7 @@ void Client::monitoraCartella(std::string p){
                         sendMessage(std::move(m));
 
                         //read response
-                        m = awaitMessage(MessageType::text);
+                        m = awaitMessage();
 
                         if(m.getMessage().compare("ACK") == 0) break;
                     }
@@ -283,7 +283,7 @@ void Client::inviaFile(filesystem::path p, FileStatus status) /*throw (std::runt
     while(true){
         Message m = Message("CHECK");
         sendMessage(std::move(m));
-        m = awaitMessage(MessageType::text);
+        m = awaitMessage();
         if(m.getMessage().compare("ACK") == 0) break;
     }
 
@@ -316,7 +316,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 sendMessage(std::move(m));
 
                 //ricevo response
-                m = awaitMessage(MessageType::text);
+                m = awaitMessage();
                
                 Message m2 = Message("ACK");
                 sendMessage(std::move(m2));
@@ -346,7 +346,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 sendMessage(std::move(m));
 
                 //ricevo response
-                m = awaitMessage(MessageType::text);
+                m = awaitMessage();
 
                 //invio ACK arrivo checksum
                 Message m2 = Message("ACK");
@@ -365,7 +365,7 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
         while(true){
             Message m = Message("END");
             sendMessage(std::move(m));
-            m = awaitMessage(MessageType::text);
+            m = awaitMessage();
             if(m.getMessage().compare("ACK") == 0) break;
         }
     });
