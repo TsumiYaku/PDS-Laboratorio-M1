@@ -50,7 +50,7 @@ class Client{
     std::string readline(); //legge una riga da command line del client
     void sincronizzaFile(std::string path_, FileStatus status); //invia directory/file modificata al server in modalità asincrona (thread separato)
     void sendMessage(Message&&);
-    Message&& awaitMessage(size_t);
+    Message awaitMessage(size_t);
 
 public:
     Client(const Client&) = delete;

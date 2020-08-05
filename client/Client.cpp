@@ -63,7 +63,7 @@ void Client::sendMessage(Message &&m) {
     sock.write(s.c_str(), strlen(s.c_str())+1, 0);
 }
 
-Message&& Client::awaitMessage(size_t msg_size = 1024) {
+Message Client::awaitMessage(size_t msg_size = 1024) {
     // Socket read
     char buf[msg_size];
     int size = sock.read(buf, msg_size, 0);
@@ -75,7 +75,7 @@ Message&& Client::awaitMessage(size_t msg_size = 1024) {
     Message m(MessageType::text);
     m.unserialize(ia, 0);
     log("Message recieve:" + m.getMessage());
-    return std::move(m);
+    return m;
 }
 
 

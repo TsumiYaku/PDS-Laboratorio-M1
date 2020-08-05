@@ -4,7 +4,7 @@ Connection::Connection(Socket&& socket) {
      this->socket = std::move(socket);
 }
 
-Message&& Connection::awaitMessage(size_t msg_size = 1024) {
+Message Connection::awaitMessage(size_t msg_size = 1024) {
     // Socket read
     char buf[msg_size];
     int size = socket.read(buf, msg_size, 0);
@@ -25,7 +25,7 @@ Message&& Connection::awaitMessage(size_t msg_size = 1024) {
         std::cout << "Incoming file..." << std::endl;
 
 
-    return std::move(m);
+    return m;
 }
 
 void Connection::sendMessage(Message &&m) {

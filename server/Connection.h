@@ -13,7 +13,7 @@ class Connection {
     bool terminate = false;
 
 private:
-    Message&& awaitMessage(size_t);
+    Message awaitMessage(size_t);
     void handlePacket(Message&&); // handle messages sent by client
     void sendChecksum();
     void sendMessage(Message&&);
