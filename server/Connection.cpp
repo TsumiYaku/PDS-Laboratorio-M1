@@ -14,10 +14,25 @@ Message&& Connection::awaitMessage(size_t msg_size = 1024) {
     Message m(MessageType::text);
     m.unserialize(ia, 0);
 
+    if (logged)
+        std::cout << "Received message from user: " << username << std::endl;
+    if(m.getType() == MessageType::text)
+        std::cout << "Message: " << m.getMessage() << std::endl;
+    else
+        std::cout << "Incoming file..." << std::endl;
+
+
     return std::move(m);
 }
 
 void Connection::sendMessage(Message &&m) {
+    if (logged)
+        std::cout << "Sending message to user: " << username << std::endl;
+    if(m.getType() == MessageType::text)
+        std::cout << "Message: " << m.getMessage() << std::endl;
+    else
+        std::cout << "Sending file..." << std::endl;
+
     // Serialization
     std::stringstream sstream;
     Serializer oa(sstream);
@@ -48,6 +63,8 @@ void Connection::run() {
         username = msg.substr(first, second-first);
         logged = true;
         f = new Folder(username, username);
+
+        std::cout << "User " << username << " successfully authenticated" << std::endl;
     }
 
     listenPackets();
@@ -111,6 +128,8 @@ void Connection::sendChecksum() {
 }
 
 void Connection::receiveDirectory() {
+    std::cout << "Waiting directory from user " << username << std::endl;
+
     while(true) {
         // Receive file or generic message
         Message m = awaitMessage();
@@ -141,6 +160,8 @@ void Connection::receiveDirectory() {
 }
 
 void Connection::sendDirectory() {
+    std::cout << "Sending directory to user " << username << std::endl;
+
     for (const filesystem::path& path : f->getContent()) {
         if(filesystem::is_directory(path)) continue;
 
