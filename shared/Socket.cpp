@@ -4,12 +4,8 @@
 #include <stdexcept>
 #include <string.h>
 #include <netinet/in.h>
-#include <string>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
+#include <errno.h>
 #include<sys/sendfile.h>
-#include <fcntl.h>
 
 Socket::Socket(int sockfd): sockfd(sockfd) {}
 
@@ -50,7 +46,10 @@ void Socket::connect(struct sockaddr_in *addr, unsigned int len) {
 
 ssize_t Socket::read(char *buf, size_t len, int options) {
     ssize_t res = recv(sockfd, buf, len, options);
-    if (res < 0) throw std::runtime_error("Error during socket reading string");
+    if (res < 0) {
+        std::cerr << "Error during socket reading: " << strerror(errno) << " | " << errno << std::endl;
+        throw std::runtime_error("Error during socket reading string");
+    }
     return res;
 }
 
@@ -71,7 +70,10 @@ ssize_t Socket::write(int* value, size_t len, int options) {
 //recieve integer status
 ssize_t Socket::read(int* val, size_t len, int options) {
     ssize_t res = recv(sockfd, val, len, options);
-    if (res < 0) throw std::runtime_error("Error during socket reading integer");
+    if (res < 0) {
+        std::cerr << "Error during socket reading: " << strerror(errno) << " | " << errno << std::endl;
+        throw std::runtime_error("Error during socket reading integer");
+    }
     return res;
 }
 
