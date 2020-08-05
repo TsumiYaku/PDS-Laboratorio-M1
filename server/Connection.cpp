@@ -8,6 +8,7 @@ Message&& Connection::awaitMessage(size_t msg_size = 1024) {
     // Socket read
     char buf[msg_size];
     int size = socket.read(buf, msg_size, 0);
+    
     std::cout << buf << " " << size << std::endl;
     // Unserialization
     std::stringstream sstream;
@@ -92,6 +93,7 @@ void Connection::listenPackets() {
 void Connection::handlePacket(Message &&m) {
     std::string msg(m.getMessage());
     std::string response;
+    std::cout << msg << std::endl;
 
     // Check what message has been received
     // TODO: can't we somehow use a switch? Doesn't allow me with std::string

@@ -47,7 +47,6 @@ Client::Client(std::string address, int port): address(address), port(port), sta
         sockaddrIn.sin_family = AF_INET;
         if(::inet_pton(AF_INET, address.c_str(), &sockaddrIn.sin_addr) <=0)
             throw std::runtime_error("error inet_ptn");
-        //sock = Socket();
         
         sock.connect(&sockaddrIn, sizeof(sockaddrIn));
 }
@@ -79,16 +78,6 @@ Message&& Client::awaitMessage(size_t msg_size = 1024) {
     return std::move(m);
 }
 
-/*std::string Client::readline(){ //username o directory
-     std::string buffer;
-     char c;
-     while(sock.read(&c, 1, 0)){
-        if(c=='\n')
-          return buffer;
-        else if(c |= '\r') buffer += c;
-        }
-     return std::string("");
-}*/
 
 void Client::close() /*throw(std::runtime_error)*/{
     status = closed;
@@ -111,6 +100,7 @@ bool Client::doLogin(std::string user, std::string password){
 
         if(m.getMessage().compare("OK") == 0 || m.getMessage().compare("NOT_OK") == 0) break;
     }
+
     if(m.getMessage().compare("OK") == 0) //login effettuato con successo
         return true;
     return false; //login non effettuato
@@ -121,16 +111,9 @@ void Client::monitoraCartella(std::string p){
         std::lock_guard<std::mutex> lg(this->mu);
         path dir(p);
 
-        while(true){
-            Message m = Message("SYNC");
-            sendMessage(std::move(m));
-
-            //read response
-            m = awaitMessage();
-
-            if(m.getMessage().compare("ACK") == 0) break;
-        }
-        
+        Message m = Message("SYNC");
+        sendMessage(std::move(m));
+    
         int checksumServer = 0, checksumClient = getChecksum(dir).getChecksum();
         
         sock.read(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
@@ -166,7 +149,11 @@ void Client::monitoraCartella(std::string p){
             }
 
             downloadDirectory(); //scarico contenuto del server
+        }else{
+            Message m = Message("OK");
+            sendMessage(std::move(m));
         }
+
 
         //mi metto in ascolto e attendo una modifica
         FileWatcher fw{p, std::chrono::milliseconds(1000)};
