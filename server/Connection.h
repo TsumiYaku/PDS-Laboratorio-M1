@@ -18,8 +18,8 @@ private:
     void sendChecksum();
     void sendMessage(Message&&);
     void synchronize();
-    void receiveDirectory();
-    void sendDirectory();
+    void downloadDirectory();
+    void uploadDirectory();
     bool receiveFile();
     void listenPackets();
 

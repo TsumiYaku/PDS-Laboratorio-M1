@@ -8,7 +8,7 @@ Message Connection::awaitMessage(size_t msg_size = 1024) {
     // Socket read
     char buf[msg_size];
     int size = socket.read(buf, msg_size, 0);
-    
+
     //std::cout << buf << " " << size << std::endl;
     // Unserialization
     std::stringstream sstream;
@@ -19,7 +19,7 @@ Message Connection::awaitMessage(size_t msg_size = 1024) {
 
     if (logged)
         std::cout << "Received message from user: " << username << std::endl;
-   
+
     if(m.getType() == MessageType::text)
         std::cout << "Message received: " << m.getMessage() << std::endl;
     else
@@ -28,7 +28,7 @@ Message Connection::awaitMessage(size_t msg_size = 1024) {
 }
 
 void Connection::sendMessage(Message &&m) {
-   
+
     //m.print();
     // Serialization
 
@@ -119,11 +119,11 @@ void Connection::synchronize() {
     else if(msg == "UPDATE") {
         sendMessage(Message("ACK"));
         remove_all(f->getPath());
-        receiveDirectory();
+        downloadDirectory();
     }
     else if(msg == "DOWNLOAD") {
         sendMessage(Message("ACK"));
-        sendDirectory();
+        uploadDirectory();
     }
 }
 
@@ -133,14 +133,14 @@ void Connection::sendChecksum() {
     ssize_t size = socket.write(&data, sizeof(data), 0);
 }
 
-void Connection::receiveDirectory() {
+void Connection::downloadDirectory() {
     std::cout << "Waiting directory from user " << username << std::endl;
     char buf[1024];
     std::stringstream ss;
     while(receiveFile()) {}
 }
 
-void Connection::sendDirectory() {
+void Connection::uploadDirectory() {
     std::cout << "Sending directory to user " << username << std::endl;
 
     for (const filesystem::path& path : f->getContent()) {
@@ -151,8 +151,8 @@ void Connection::sendDirectory() {
             //std::cout << f->strip_root(path).string() << std::endl;
             FileWrapper file = FileWrapper(path, strdup(""), FileStatus::created); // TODO: check if 'created' is the right status
             Message m2 = Message(std::move(file));
-            sendMessage(std::move(m2));
             std::cout << "DIRECTORY SEND " << m2.getFileWrapper().getPath() << std::endl;
+            sendMessage(std::move(m2));
         }else{
             ssize_t size = f->getFileSize(path);
             //std::cout << size <<std::endl;
@@ -170,7 +170,7 @@ void Connection::sendDirectory() {
             Message m2 = Message(std::move(file));
             //m2.print();
             sendMessage(std::move(m2));
-            
+
             m = awaitMessage();   //attendo response (TODO BETTER)
 
         }
@@ -188,18 +188,18 @@ bool Connection::receiveFile() {
         if(m.getMessage().compare("END") == 0) return false;
         if(m.getMessage().compare("FS_ERR") == 0) return false;
         if(m.getMessage().compare("ERR") == 0) return false;
-        
+
         //recieve message FILE and after recieve filewrapper
         int size = socket.read(buf, sizeof(buf), 0);
         ss << buf;
-        
+
         if(m.getMessage().compare("DIRECTORY") == 0 )
         {
             Deserializer ia(ss);
             Message m = Message(MessageType::file);
             m.unserialize(ia, 0);
             FileWrapper file = m.getFileWrapper();
-            std::cout << " DIRECTORY " << file.getPath() <<std::endl;
+            std::cout << "Receiving directory: " << file.getPath() <<std::endl;
             switch (file.getStatus()) {
                 case FileStatus::created: {
                     f->writeDirectory(file.getPath().relative_path());
@@ -210,17 +210,14 @@ bool Connection::receiveFile() {
                     break;
                 }
                 case FileStatus::erased: {
-                    //if(exists(file.getPath().relative_path()))
-                    //{
-                        filesystem::path filePath;
-                        if(file.getPath().string().substr(0,2) == "./"){
-                           filePath = f->getPath()/file.getPath().string().substr(2, file.getPath().string().length() - 2);
-                        }
-                        else
-                            filePath = file.getPath().relative_path();
+                    filesystem::path filePath;
+                    if(file.getPath().string().substr(0,2) == "./"){
+                       filePath = f->getPath()/file.getPath().string().substr(2, file.getPath().string().length() - 2);
+                    }
+                    else
+                        filePath = file.getPath().relative_path();
 
-                        f->deleteFile(filePath);
-                    //}
+                    f->deleteFile(filePath);
                     break;
                 }
                 default:
@@ -287,7 +284,3 @@ Connection &Connection::operator=(Connection &&other) {
     }
     return *this;
 }
-
-
-
-

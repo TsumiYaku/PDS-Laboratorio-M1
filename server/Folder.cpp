@@ -4,15 +4,6 @@
 
 using std::ios;
 
-boost::filesystem::path Folder::strip_root(const boost::filesystem::path& p) {
-    const boost::filesystem::path& parent_path = p.parent_path();
-    if (parent_path.empty() || parent_path.string() == "/")
-        return boost::filesystem::path();
-    else
-        return strip_root(parent_path) / p.filename();
-}
-///___________________________________
-
 Folder::Folder(const std::string &owner, const std::string &path) : owner(owner), folderPath(filesystem::path(path)) {
     // Create directory if not present
     filesystem::create_directory(this->folderPath);
@@ -21,7 +12,7 @@ Folder::Folder(const std::string &owner, const std::string &path) : owner(owner)
 // Retrieve folder content
 std::vector<filesystem::path> Folder::getContent() {
     std::vector<filesystem::path> v;
-    
+
     // Recursive research inside the folder
     for(filesystem::directory_entry& d : filesystem::recursive_directory_iterator(this->folderPath))
         v.push_back(strip_root(d.path()));
@@ -44,7 +35,7 @@ bool Folder::writeFile(const filesystem::path &path, char *buf, size_t size) {
     try {
         // If file doesn't exist create a folder for it (recursively if needed)
         if(!filesystem::exists(filePath.parent_path()))
-        {  
+        {
             filesystem::create_directories(this->folderPath);
 
         }
@@ -54,7 +45,7 @@ bool Folder::writeFile(const filesystem::path &path, char *buf, size_t size) {
         file.open(filePath, ios::out | ios::trunc | ios::binary);
         file.write(buf, size);
         file.close();
-        
+
     }
     catch (filesystem::filesystem_error& e) { // File opening might cause a filesystem_error
         std::cout << e.what();
@@ -81,12 +72,12 @@ bool Folder::writeDirectory(const filesystem::path &path) {
     try {
         // If file doesn't exist create a folder for it (recursively if needed)
         if(!filesystem::exists(filePath.parent_path()))
-        {  
+        {
             //std::cout << filePath.string() << std::endl;
             filesystem::create_directories(this->folderPath);
         }
         filesystem::create_directories(filePath);
-    
+
     }
     catch (filesystem::filesystem_error& e) { // File opening might cause a filesystem_error
         std::cout << e.what();
@@ -150,7 +141,7 @@ uint32_t Folder::getChecksum() {
 //toglie la directory user dal path
 boost::filesystem::path Folder::strip_root(const boost::filesystem::path& p) {
     const boost::filesystem::path& parent_path = p.parent_path();
-    if (parent_path.empty() || parent_path.string() == "/")
+    if (parent_path.empty() || parent_path.string() == "/" || parent_path.string() == ".")
         return boost::filesystem::path();
     else
         return strip_root(parent_path) / p.filename();

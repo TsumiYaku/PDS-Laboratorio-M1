@@ -7,7 +7,7 @@ int main(int argc, char* argv[]){
    }
    try{
       Client c(std::string(argv[1]), atoi(argv[2]));
-      while(!c.doLogin("user", "pwd")){}
+      while(!c.doLogin("tester", "pwd")){}
       c.monitoraCartella("./prova");
    }catch(std::runtime_error& e){
       std::cout << e.what() << std::endl;
