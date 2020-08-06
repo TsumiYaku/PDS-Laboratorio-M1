@@ -46,6 +46,8 @@ class Client{
     void sincronizzaFile(std::string path_, FileStatus status); //invia directory/file modificata al server in modalità asincrona (thread separato)
     void sendMessage(Message&&);
     Message awaitMessage(size_t);
+    std::vector<filesystem::path> getContent(path dir);
+    uint32_t getChecksum(path p);
 
 public:
     Client(const Client&) = delete;

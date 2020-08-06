@@ -22,9 +22,7 @@ Message Connection::awaitMessage(size_t msg_size = 1024) {
     if(m.getType() == MessageType::text)
         std::cout << "Message received: " << m.getMessage() << std::endl;
     else
-        std::cout << "Incoming file..." << std::endl;
-
-
+        std::cout << "Incoming file..." << m.getFileWrapper().getPath().relative_path()<< std::endl;
     return m;
 }
 
@@ -34,7 +32,7 @@ void Connection::sendMessage(Message &&m) {
     if(m.getType() == MessageType::text)
         std::cout << "Message sent: " << m.getMessage() << std::endl;
     else
-        std::cout << "Sending file..." << std::endl;
+        std::cout << "Sending file..." << m.getFileWrapper().getPath().relative_path()<< std::endl;
 
     // Serialization
     std::stringstream sstream;
@@ -132,26 +130,39 @@ void Connection::sendChecksum() {
 
 void Connection::receiveDirectory() {
     std::cout << "Waiting directory from user " << username << std::endl;
-
+    char buf[1024];
+    std::stringstream ss;
     while(true) {
         // Receive file or generic message
-        Message m = awaitMessage();
-        if (m.getType() == MessageType::text && m.getMessage() == "END") break;
 
+        /*Message m = awaitMessage();
+        if(m.getMessage().compare("CKECK") == 0)
+            sendMessage(Message("ACK"));
+        else
+            sendMessage(Message("ERR"));*/
+
+        //TO DO BETTER
+        int size = socket.read(buf, sizeof(buf), 0);
+        ss << buf;
+        if (ss.str().find("END") != std::string::npos) break;//archivio contiene END
+
+        Deserializer ia(ss);
+        Message m(MessageType::file);
+        m.unserialize(ia, 0);
         FileWrapper file = m.getFileWrapper();
         switch (file.getStatus()) {
             case FileStatus::created: {
                 char *data = file.getData();
-                f->writeFile(file.getPath(), data, sizeof(data));
+                f->writeFile(file.getPath().relative_path(), data, sizeof(data));
                 break;
             }
             case FileStatus::modified: {
                 char *data = file.getData();
-                f->writeFile(file.getPath(), data, sizeof(data));
+                f->writeFile(file.getPath().relative_path(), data, sizeof(data));
                 break;
             }
             case FileStatus::erased: {
-                f->deleteFile(file.getPath());
+                f->deleteFile(file.getPath().relative_path());
                 break;
             }
             default:

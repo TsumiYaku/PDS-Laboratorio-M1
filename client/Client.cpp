@@ -32,13 +32,7 @@ void log(std::string msg){
     std::cout<<msg<<std::endl;
 }
 
-//calcola il checksum partendo dal path
-Checksum getChecksum(path p) {
-    Checksum checksum = Checksum();
-    for(filesystem::path path: p)
-        checksum.add(path.string());
-    return checksum;
-}
+
 
 /*************************CLIENT********************************************/
 Client::Client(std::string address, int port): address(address), port(port), status(start){
@@ -74,6 +68,26 @@ Client &Client::operator=(Client &&other) {
         std::cout <<"CLIENT MOVE OPERETOR="<<std::endl;
     }
     return *this;
+}
+
+
+std::vector<filesystem::path> Client::getContent(path dir) {
+    std::vector<filesystem::path> v;
+
+    // Recursive research inside the folder
+    for(filesystem::directory_entry& d : filesystem::recursive_directory_iterator(dir))
+        v.push_back(d.path());
+
+    return v;
+}
+
+//calcola il checksum partendo dal path
+uint32_t Client::getChecksum(path p) {
+    Checksum checksum = Checksum();
+    for(filesystem::path path: this->getContent(p))
+        checksum.add(path.string());
+
+    return checksum.getChecksum();
 }
 
 void Client::sendMessage(Message &&m) {
@@ -142,12 +156,14 @@ void Client::monitoraCartella(std::string p){
         Message m = Message("SYNC");
         sendMessage(std::move(m));
     
-        int checksumServer = 0, checksumClient = getChecksum(dir).getChecksum();
+        int checksumServer = 0, checksumClient = getChecksum(dir);
         
         sock.read(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
-       
+        std::cout << "CHECKSUM CLIENT " << checksumClient <<std::endl;
+        std::cout << "CHECKSUM SERVER " << checksumServer <<std::endl;
+
         if(exists(dir)){ //la cartella esiste e quindi la invio al server  
-            if((checksumServer == 0 && checksumClient != 0) || checksumClient != checksumServer){//invio tutta la directory per sincornizzare
+            if((checksumServer == 0 && checksumClient != 0) || (checksumClient != checksumServer)){//invio tutta la directory per sincornizzare
                 //invio richiesta update directory server (fino ad ottenere response ACK)
                 while(true){
                     Message m = Message("UPDATE");
@@ -259,20 +275,18 @@ void Client::monitoraCartella(std::string p){
 void Client::downloadDirectory(){
     //std::thread download([this]() -> void{
         //std::lock_guard<std::mutex> lg(this->mu);
-        char* textMessage;
         std::stringstream ss;
         char buf[1024];
         while(true){
             //read message (server send file as soon as sending ACK)  
             
+            //TO DO BETTER
             int size = sock.read(buf, sizeof(buf), 0);
             ss << buf;
             if (ss.str().find("TERMINATED") != std::string::npos) break; 
             
             // Unserialization
-            std::stringstream sstream;
-            sstream << buf;
-            Deserializer ia(sstream);
+            Deserializer ia(ss);
             Message m(MessageType::file);
             m.unserialize(ia, 0);
             FileWrapper f = m.getFileWrapper();
@@ -299,7 +313,7 @@ void Client::downloadDirectory(){
 
 
 void Client::inviaFile(filesystem::path p, FileStatus status) /*throw (std::runtime_error, filesystem::filesystem_error)*/{
-    while(true){
+    /*while(true){
         Message m = Message("CHECK");
         sendMessage(std::move(m));
         m = awaitMessage();
@@ -313,11 +327,11 @@ void Client::inviaFile(filesystem::path p, FileStatus status) /*throw (std::runt
     //invio ACK all'arrivo checksum
     Message m = Message("ACK");
     sendMessage(std::move(m));//invio ACK al server
-
+    */
     //controllo checksum ed eventuale sincro
-    if(checksumClient != checksumServer){
+    //if(checksumClient != checksumServer){
         sincronizzaFile(p.relative_path().string(), status);
-    }
+    //}
 }
 
 void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*throw(filesystem::filesystem_error, std::runtime_error)*/{
@@ -329,9 +343,12 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
         std::stringstream ss;
         while(true){
             if(is_directory(p)){
+                
                 //invio directory da sincronizzare
                 FileWrapper f = FileWrapper(p, strdup(""), status);
+               
                 Message m = Message(std::move(f));
+                std::cout << "DIRECTORY SEND " << m.getFileWrapper().getPath() << std::endl;
                 sendMessage(std::move(m));
 
                 //ricevo response
@@ -342,12 +359,11 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
 
                 //leggo messaggio da server
                 if(m.getMessage().compare("ACK") == 0) break;
-
             }else if(is_regular_file(p)){
                 //invio file da sincronizzare
-                std::ifstream input(p.relative_path().string());
+                std::ifstream input(p.string());
                 if(input.bad()) {
-                    Message m = Message("ERR");
+                    Message m = Message("FS_ERR");
                     sendMessage(std::move(m));
                     throw std::runtime_error("Error reading file"); 
                 }
@@ -360,8 +376,10 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
                 input.close();
 
                 char* data = strdup(sstr.str().c_str());
+    
                 FileWrapper f = FileWrapper(p, data, status);
                 Message m = Message(std::move(f));
+                std::cout << "FILE SEND " << m.getFileWrapper().getPath() << std::endl;
                 sendMessage(std::move(m));
 
                 //ricevo response
@@ -373,13 +391,13 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
 
                 //leggo ACK
                 if(m.getMessage().compare("ACK") == 0) break;
-            }
-            else {
+            } /*else {
                 Message m2 = Message("ERR");
                 sendMessage(std::move(m2));
                 throw std::runtime_error("file not supported");
-            }
+            }*/
         }
+
         //ho finito di inviare file
         while(true){
             Message m = Message("END");
