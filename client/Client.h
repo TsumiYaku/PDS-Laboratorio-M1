@@ -39,8 +39,7 @@ class Client{
     struct sockaddr_in* sad;
     std::string address;
     int port;
-    path dir;
-
+    
     void inviaFile(path path_, FileStatus status); //ivia richiesta aggiunta/modifica file al server
     void downloadDirectory(); //scarica il contenuto inviato dal server fino alla recezione del messagio END
     std::string readline(); //legge una riga da command line del client
@@ -49,7 +48,6 @@ class Client{
     Message awaitMessage(size_t);
     std::vector<filesystem::path> getContent(path dir);
     uint32_t getChecksum(path p);
-    boost::filesystem::path strip_root(const boost::filesystem::path& p);
 
 public:
     Client(const Client&) = delete;
@@ -58,7 +56,7 @@ public:
     Client(Client&&);
     Client(std::string address, int port);
     ~Client();
-
+    
     void close(); //chiude client
     //void recieveACK(Message&& m); //ricezione di un messaggio ACK
     bool doLogin(std::string user, std::string password); //effettua login. restituisce true se si è effettuato logi da server o false se user o psw è errata
