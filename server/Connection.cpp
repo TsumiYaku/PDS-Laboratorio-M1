@@ -149,7 +149,7 @@ void Connection::sendDirectory() {
             sendMessage(Message("DIRECTORY"));
             Message m = awaitMessage();
             //std::cout << f->strip_root(path).string() << std::endl;
-            FileWrapper file = FileWrapper(f->strip_root(path), strdup(""), FileStatus::created); // TODO: check if 'created' is the right status
+            FileWrapper file = FileWrapper(path, strdup(""), FileStatus::created); // TODO: check if 'created' is the right status
             Message m2 = Message(std::move(file));
             sendMessage(std::move(m2));
             std::cout << "DIRECTORY SEND " << m2.getFileWrapper().getPath() << std::endl;
@@ -166,7 +166,7 @@ void Connection::sendDirectory() {
             sendMessage(Message("FILE"));
             Message m = awaitMessage(); //attendo un response da client
 
-            FileWrapper file = FileWrapper(f->strip_root(path), buf, FileStatus::created); // TODO: check if 'created' is the right status
+            FileWrapper file = FileWrapper(path, buf, FileStatus::created); // TODO: check if 'created' is the right status
             Message m2 = Message(std::move(file));
             //m2.print();
             sendMessage(std::move(m2));
@@ -179,9 +179,6 @@ void Connection::sendDirectory() {
     sendMessage(Message("END"));
 
 }
-
-//toglie la directory user dal path
-
 
 bool Connection::receiveFile() {
         std::stringstream ss;
