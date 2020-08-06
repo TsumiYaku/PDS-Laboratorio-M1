@@ -13,7 +13,7 @@ class Connection {
     bool terminate = false;
 
 private:
-    boost::filesystem::path strip_root(const boost::filesystem::path& p);
+    
     Message awaitMessage(size_t);
     void handlePacket(Message&&); // handle messages sent by client
     void sendChecksum();
@@ -21,7 +21,7 @@ private:
     void synchronize();
     void receiveDirectory();
     void sendDirectory();
-    void receiveFile();
+    bool receiveFile();
     void listenPackets();
 
 public:

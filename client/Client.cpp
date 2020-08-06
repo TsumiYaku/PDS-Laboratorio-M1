@@ -296,11 +296,12 @@ void Client::monitoraCartella(std::string p){
                     }
                 }
                 case FileStatus::nothing:{
+                    break;
                     //nessuna modifica da effettuare
-                    Message m = Message("OK");
-                    sendMessage(std::move(m));
-
+                    //Message m = Message("OK");
+                    //sendMessage(std::move(m));
                 }
+                default:break;
             }
   	    }); 
     //}, std::move(sock));
@@ -434,12 +435,21 @@ void Client::sincronizzaFile(filesystem::path path_to_watch, FileStatus status) 
 
                 //leggo ACK
                 if(m.getMessage().compare("ACK") == 0) break;
-
-            } else {
-                Message m2 = Message("ERR");
+            }else if(!exists(path_to_watch)){ //file cancellato
+                Message m = Message("FILE");
+                sendMessage(std::move(m));
+                FileWrapper f = FileWrapper(path_to_watch, strdup(""), status);
+               
+                Message m2 = Message(std::move(f));
+                //m2.print();
                 sendMessage(std::move(m2));
-                throw std::runtime_error("file not supported");
+
+                std::cout << "FILE DELETED " << m2.getFileWrapper().getPath() << std::endl;
                 break;
+            }else{
+                Message m = Message("ERR");
+                sendMessage(std::move(m));
+                throw std::runtime_error("File not supported");
             }
         }
 

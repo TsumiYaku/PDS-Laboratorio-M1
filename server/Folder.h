@@ -15,8 +15,9 @@ class Folder {
     filesystem::path folderPath; // Path in the filesystem where the folder is currently present
 
 public:
+    boost::filesystem::path strip_root(const boost::filesystem::path& p);
     Folder(const std::string &owner, const std::string &path);
-
+    filesystem::path getPath();
     std::vector<filesystem::path> getContent(); // Return content of the folder
     bool writeFile(const filesystem::path &path, char* buf, size_t size); // Writes a file in the specified path
     bool writeDirectory(const filesystem::path &path); // Writes a directory in the specified path
