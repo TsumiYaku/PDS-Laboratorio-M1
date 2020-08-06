@@ -1,2 +1,0 @@
-/usr/bin/ar qc libshared.a CMakeFiles/shared.dir/Checksum.cpp.o CMakeFiles/shared.dir/Socket.cpp.o CMakeFiles/shared.dir/packets/Message.cpp.o CMakeFiles/shared.dir/packets/FileWrapper.cpp.o CMakeFiles/shared.dir/packets/main.cpp.o
-/usr/bin/ranlib libshared.a
