@@ -19,6 +19,7 @@ public:
     ~Socket();
     Socket(Socket &&other);
     void closeSocket();
+    int getSocket();
     Socket &operator=(Socket &&other);
     /* Operations */
     void connect(struct sockaddr_in *addr, unsigned int len);
@@ -26,7 +27,7 @@ public:
     // Socket read
     ssize_t read(char* buf, size_t len, int options);
     ssize_t read(int* val, size_t len, int options);
-
+    void print();
     // Socket write
     ssize_t write(const char* buf, size_t len, int options);
     ssize_t write(int* value, size_t len, int options);

@@ -217,7 +217,7 @@ Connection::Connection(Connection &&other) {
     other.f = nullptr;
     logged = other.logged;
     terminate = other.terminate;
-    std::cout <<"CONNECTION MOVE 2"<<std::endl;
+    std::cout <<"CONNECTION MOVE"<<std::endl;
 }
 
 Connection &Connection::operator=(Connection &&other) {
@@ -228,7 +228,7 @@ Connection &Connection::operator=(Connection &&other) {
         other.f = nullptr;
         logged = other.logged;
         terminate = other.terminate;
-        std::cout <<"CONNECTION MOVE"<<std::endl;
+        std::cout <<"CONNECTION MOVE OPERATOR="<<std::endl;
     }
     return *this;
 }

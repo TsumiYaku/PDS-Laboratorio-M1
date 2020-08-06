@@ -51,6 +51,31 @@ Client::Client(std::string address, int port): address(address), port(port), sta
         sock.connect(&sockaddrIn, sizeof(sockaddrIn));
 }
 
+Client::Client(Client &&other) {
+
+    this->sock = std::move(sock);
+    this->status = other.status;
+    this->sad = other.sad;
+    this->address = std::move(other.address);
+    this->port = other.port;
+    other.sock.closeSocket();
+    
+    std::cout <<"CLIENT MOVE"<<std::endl;
+}
+
+Client &Client::operator=(Client &&other) {
+    if(this->user != other.user){
+        this->sock = std::move(sock);
+        this->status = other.status;
+        this->sad = other.sad;
+        this->address = std::move(other.address);
+        this->port = other.port;
+        other.sock.closeSocket();
+        std::cout <<"CLIENT MOVE OPERETOR="<<std::endl;
+    }
+    return *this;
+}
+
 void Client::sendMessage(Message &&m) {
     // Serialization
     std::stringstream sstream;
@@ -89,7 +114,7 @@ Client::~Client(){
 }
 
 bool Client::doLogin(std::string user, std::string password){
-   
+    this->user = user;
     Message m = Message(MessageType::text);
     while(true){
         m = Message("LOGIN_" + user + "_" + password);
@@ -107,8 +132,11 @@ bool Client::doLogin(std::string user, std::string password){
 }
 
 void Client::monitoraCartella(std::string p){
-    std::thread controllaDirectory([this, p]() -> void {
-        std::lock_guard<std::mutex> lg(this->mu);
+    //sock.print();
+   // std::thread controllaDirectory([this, p]() -> void {
+        
+        //std::lock_guard<std::mutex> lg(this->mu);
+        sock.print();
         path dir(p);
 
         Message m = Message("SYNC");
@@ -123,6 +151,7 @@ void Client::monitoraCartella(std::string p){
                 //invio richiesta update directory server (fino ad ottenere response ACK)
                 while(true){
                     Message m = Message("UPDATE");
+
                     sendMessage(std::move(m));
 
                     //read response
@@ -221,15 +250,15 @@ void Client::monitoraCartella(std::string p){
                 }
             }
   	    }); 
-    });
+    //});
 
-    controllaDirectory.detach();
+    //controllaDirectory.detach();
 }
 
 
 void Client::downloadDirectory(){
-    std::thread download([this]() -> void{
-        std::lock_guard<std::mutex> lg(this->mu);
+    //std::thread download([this]() -> void{
+        //std::lock_guard<std::mutex> lg(this->mu);
         char* textMessage;
         std::stringstream ss;
         char buf[1024];
@@ -237,7 +266,8 @@ void Client::downloadDirectory(){
             //read message (server send file as soon as sending ACK)  
             
             int size = sock.read(buf, sizeof(buf), 0);
-            if (strcmp(buf,"END") == 0) break; //send END in chiaro (non serializato) per riconoscere il tipo di messaggio
+            ss << buf;
+            if (ss.str().find("TERMINATED") != std::string::npos) break; 
             
             // Unserialization
             std::stringstream sstream;
@@ -263,8 +293,8 @@ void Client::downloadDirectory(){
             m = Message("ACK");
             sendMessage(std::move(m));
         };
-    });
-    download.detach();
+    //});
+    //download.detach();
 }
 
 
@@ -291,7 +321,7 @@ void Client::inviaFile(filesystem::path p, FileStatus status) /*throw (std::runt
 }
 
 void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*throw(filesystem::filesystem_error, std::runtime_error)*/{
-    std::thread synch([this, path_to_watch, status] () -> void {
+    //std::thread synch([this, path_to_watch, status] () -> void {
         //std::lock_guard<std::mutex> lg(this->mu);
 
         path p(path_to_watch);
@@ -357,6 +387,6 @@ void Client::sincronizzaFile(std::string path_to_watch, FileStatus status) /*thr
             m = awaitMessage();
             if(m.getMessage().compare("ACK") == 0) break;
         }
-    });
-    synch.detach();
+    //});
+    //synch.detach();
 }

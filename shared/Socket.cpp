@@ -7,7 +7,10 @@
 #include <errno.h>
 #include<sys/sendfile.h>
 
-Socket::Socket(int sockfd): sockfd(sockfd) {}
+Socket::Socket(int sockfd): sockfd(sockfd) {
+    if (sockfd < 0) throw std::runtime_error("Error during socket creation");
+    std::cout << "Socket " << sockfd << " initialized" << std::endl;
+}
 
 Socket::Socket() {
     sockfd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -19,6 +22,7 @@ Socket::~Socket() {
     if (sockfd > 0) {
         std::cout << "Closing socket " << sockfd <<std::endl;
         close(sockfd);
+        sockfd = 0;
     }
 }
 
@@ -26,15 +30,19 @@ Socket::Socket(Socket &&other) {
     if (sockfd > 0) close(sockfd);
     sockfd = other.sockfd;
     other.sockfd = 0;
-    std::cout <<"SOCKET MOVE 2"<<std::endl;
+    std::cout <<"SOCKET MOVE"<<std::endl;
 }
 
 Socket &Socket::operator=(Socket &&other) {
     if (sockfd > 0) close(sockfd);
     sockfd = other.sockfd;
     other.sockfd = 0;
-    std::cout <<"SOCKET MOVE"<<std::endl;
+    std::cout <<"SOCKET MOVE OPERATOR="<<std::endl;
     return *this;
+}
+
+int Socket::getSocket(){
+    return sockfd;
 }
 
 void Socket::connect(struct sockaddr_in *addr, unsigned int len) {
@@ -81,10 +89,15 @@ ssize_t Socket::read(int* val, size_t len, int options) {
     return res;
 }
 
+void Socket::print() {
+        std::cout << "PRINT socket " << sockfd <<std::endl;
+}
+
 //close socket
 void Socket::closeSocket() {
     if (sockfd > 0) {
         std::cout << "Closing socket " << sockfd <<std::endl;
         close(sockfd);
+        sockfd = 0;
     }
 }

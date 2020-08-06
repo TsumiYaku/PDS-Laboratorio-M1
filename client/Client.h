@@ -35,12 +35,7 @@ class Client{
     Socket sock;
     ClientStatus status;
     std::mutex mu;
-
-    //std::string username;
-    //std::string password;
-
-    //std::string directory;
-
+    std::string user;
     struct sockaddr_in* sad;
     std::string address;
     int port;
@@ -54,7 +49,9 @@ class Client{
 
 public:
     Client(const Client&) = delete;
-    Client& operator=(const Client&) = delete;
+
+    Client& operator=(Client&&);
+    Client(Client&&);
     Client(std::string address, int port);
     ~Client();
     
