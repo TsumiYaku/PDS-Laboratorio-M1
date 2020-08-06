@@ -90,7 +90,6 @@ void Connection::listenPackets() {
     }
 }
 
-
 void Connection::handlePacket(Message &&m) {
     std::string msg(m.getMessage());
     std::string response;
@@ -104,7 +103,7 @@ void Connection::handlePacket(Message &&m) {
         synchronize();
     else if (msg == "CREATE" || msg == "MODIFY" || msg == "ERASE") { // Folder listening management
         sendMessage(Message("ACK"));
-        receiveFile();
+        while(receiveFile()) {};
     }
 
 }
@@ -119,6 +118,7 @@ void Connection::synchronize() {
         return;
     else if(msg == "UPDATE") {
         sendMessage(Message("ACK"));
+        remove_all(f->getPath());
         receiveDirectory();
     }
     else if(msg == "DOWNLOAD") {
@@ -137,14 +137,61 @@ void Connection::receiveDirectory() {
     std::cout << "Waiting directory from user " << username << std::endl;
     char buf[1024];
     std::stringstream ss;
-    while(true) {
+    while(receiveFile()) {}
+}
+
+void Connection::sendDirectory() {
+    std::cout << "Sending directory to user " << username << std::endl;
+
+    for (const filesystem::path& path : f->getContent()) {
+
+        if(filesystem::is_directory(path)) {
+            sendMessage(Message("DIRECTORY"));
+            Message m = awaitMessage();
+            //std::cout << f->strip_root(path).string() << std::endl;
+            FileWrapper file = FileWrapper(f->strip_root(path), strdup(""), FileStatus::created); // TODO: check if 'created' is the right status
+            Message m2 = Message(std::move(file));
+            sendMessage(std::move(m2));
+            std::cout << "DIRECTORY SEND " << m2.getFileWrapper().getPath() << std::endl;
+        }else{
+            ssize_t size = f->getFileSize(path);
+            //std::cout << size <<std::endl;
+            char* buf = new char[size];
+
+            if(!f->readFile(path, buf, size)) {
+                sendMessage(Message("FS_ERR"));
+                break;
+            }
+            std::cout <<"CONTENT FILE " << buf << std::endl;
+            sendMessage(Message("FILE"));
+            Message m = awaitMessage(); //attendo un response da client
+
+            FileWrapper file = FileWrapper(f->strip_root(path), buf, FileStatus::created); // TODO: check if 'created' is the right status
+            Message m2 = Message(std::move(file));
+            //m2.print();
+            sendMessage(std::move(m2));
+            
+            m = awaitMessage();   //attendo response (TODO BETTER)
+
+        }
+    }
+
+    sendMessage(Message("END"));
+
+}
+
+//toglie la directory user dal path
+
+
+bool Connection::receiveFile() {
+        std::stringstream ss;
         Message m = awaitMessage();
         sendMessage(Message("OK"));
-        if(m.getMessage().compare("END") == 0) break;
-        if(m.getMessage().compare("FS_ERR") == 0) break;
-        if(m.getMessage().compare("ERR") == 0) continue;
+        char buf[1024];
+        if(m.getMessage().compare("END") == 0) return false;
+        if(m.getMessage().compare("FS_ERR") == 0) return false;
+        if(m.getMessage().compare("ERR") == 0) return false;
         
-
         //recieve message FILE and after recieve filewrapper
         int size = socket.read(buf, sizeof(buf), 0);
         ss << buf;
@@ -166,7 +213,17 @@ void Connection::receiveDirectory() {
                     break;
                 }
                 case FileStatus::erased: {
-                    f->deleteFile(file.getPath().relative_path());
+                    //if(exists(file.getPath().relative_path()))
+                    //{
+                        filesystem::path filePath;
+                        if(file.getPath().string().substr(0,2) == "./"){
+                           filePath = f->getPath()/file.getPath().string().substr(2, file.getPath().string().length() - 2);
+                        }
+                        else
+                            filePath = file.getPath().relative_path();
+
+                        f->deleteFile(filePath);
+                    //}
                     break;
                 }
                 default:
@@ -191,7 +248,15 @@ void Connection::receiveDirectory() {
                     break;
                 }
                 case FileStatus::erased: {
-                    f->deleteFile(file.getPath().relative_path());
+                    filesystem::path filePath;
+                    if(file.getPath().string().substr(0,2) == "./"){
+                        filePath = f->getPath()/file.getPath().string().substr(2, file.getPath().string().length() - 2);
+                    }
+                    else
+                        filePath = file.getPath().relative_path();
+                    std::cout << "DELETE "<< filePath << std::endl;
+
+                    f->deleteFile(filePath);
                     break;
                 }
                 default:
@@ -200,75 +265,7 @@ void Connection::receiveDirectory() {
         }
 
         sendMessage(Message("ACK"));
-    }
-}
-
-void Connection::sendDirectory() {
-    std::cout << "Sending directory to user " << username << std::endl;
-
-    for (const filesystem::path& path : f->getContent()) {
-
-        if(filesystem::is_directory(path)) {
-            sendMessage(Message("DIRECTORY"));
-            Message m = awaitMessage();
-            std::cout << strip_root(path).string() << std::endl;
-            FileWrapper file = FileWrapper(strip_root(path), strdup(""), FileStatus::created); // TODO: check if 'created' is the right status
-            Message m2 = Message(std::move(file));
-            sendMessage(std::move(m2));
-            std::cout << "DIRECTORY SEND " << m2.getFileWrapper().getPath() << std::endl;
-        }else{
-            ssize_t size = f->getFileSize(path);
-            //std::cout << size <<std::endl;
-            char* buf = new char[size];
-
-            if(!f->readFile(path, buf, size)) {
-                sendMessage(Message("FS_ERR"));
-                break;
-            }
-            std::cout <<"CONTENT FILE " << buf << std::endl;
-            sendMessage(Message("FILE"));
-            Message m = awaitMessage(); //attendo un response da client
-
-            FileWrapper file = FileWrapper(strip_root(path), buf, FileStatus::created); // TODO: check if 'created' is the right status
-            Message m2 = Message(std::move(file));
-            //m2.print();
-            sendMessage(std::move(m2));
-            
-            m = awaitMessage();   //attendo response (TODO BETTER)
-
-        }
-    }
-
-    sendMessage(Message("END"));
-
-}
-
-void Connection::receiveFile() {
-    Message m = awaitMessage();
-    //sendMessage(Message("OK")); 
-
-
-    FileWrapper file = m.getFileWrapper();
-    switch (file.getStatus()) {
-        case FileStatus::created: {
-            char *data = file.getData();
-            f->writeFile(file.getPath(), data, strlen(data));
-            break;
-        }
-        case FileStatus::modified: {
-            char *data = file.getData();
-            f->writeFile(file.getPath(), data, strlen(data));
-            break;
-        }
-        case FileStatus::erased: {
-            f->deleteFile(file.getPath());
-            break;
-        }
-        default:
-            break;
-    }
-
-    sendMessage(Message("ACK"));
+        return true;
 }
 
 Connection::Connection(Connection &&other) {

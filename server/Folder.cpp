@@ -4,6 +4,15 @@
 
 using std::ios;
 
+boost::filesystem::path Folder::strip_root(const boost::filesystem::path& p) {
+    const boost::filesystem::path& parent_path = p.parent_path();
+    if (parent_path.empty() || parent_path.string() == "/")
+        return boost::filesystem::path();
+    else
+        return strip_root(parent_path) / p.filename();
+}
+///___________________________________
+
 Folder::Folder(const std::string &owner, const std::string &path) : owner(owner), folderPath(filesystem::path(path)) {
     // Create directory if not present
     filesystem::create_directory(this->folderPath);
@@ -55,6 +64,10 @@ bool Folder::writeFile(const filesystem::path &path, char *buf, size_t size) {
     return true;
 }
 
+filesystem::path Folder::getPath(){
+    return this->folderPath;
+}
+
 bool Folder::writeDirectory(const filesystem::path &path) {
     filesystem::path filePath;
     //std::cout << path.string().substr(0,2) <<std::endl;
@@ -64,7 +77,7 @@ bool Folder::writeDirectory(const filesystem::path &path) {
     else
         filePath = this->folderPath/path;
 
-    std::cout <<"WRITE DIRECTORY PATH: " << filePath << std::endl;
+    std::cout << "WRITE DIRECTORY PATH: " << filePath << std::endl;
     try {
         // If file doesn't exist create a folder for it (recursively if needed)
         if(!filesystem::exists(filePath.parent_path()))

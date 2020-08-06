@@ -20,7 +20,7 @@ private:
     void synchronize();
     void receiveDirectory();
     void sendDirectory();
-    void receiveFile();
+    bool receiveFile();
     void listenPackets();
 
 public:
