@@ -15,7 +15,7 @@ std::vector<filesystem::path> Folder::getContent() {
     
     // Recursive research inside the folder
     for(filesystem::directory_entry& d : filesystem::recursive_directory_iterator(this->folderPath))
-        v.push_back(d.path());
+        v.push_back(strip_root(d.path()));
 
     return v;
 }
@@ -87,11 +87,13 @@ bool Folder::readFile(const filesystem::path &path, char *buf, size_t size) {
 
     std::cout <<"READ FILE PATH: " << path << std::endl;
 
+    filesystem::path filePath = this->folderPath/path;
+
     if(!filesystem::exists(path))
         return false;
 
     try {
-        size_t fileSize = filesystem::file_size(path);
+        size_t fileSize = filesystem::file_size(filePath);
         if (size > fileSize) size = fileSize;
         std::cout << path << " " << size <<std::endl;
         filesystem::ifstream file;
@@ -132,5 +134,11 @@ uint32_t Folder::getChecksum() {
     return checksum.getChecksum();
 }
 
-
-
+//toglie la directory user dal path
+boost::filesystem::path Folder::strip_root(const boost::filesystem::path& p) {
+    const boost::filesystem::path& parent_path = p.parent_path();
+    if (parent_path.empty() || parent_path.string() == "/")
+        return boost::filesystem::path();
+    else
+        return strip_root(parent_path) / p.filename();
+}

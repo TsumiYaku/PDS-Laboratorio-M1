@@ -14,6 +14,9 @@ class Folder {
     std::string name; // Name of the folder; TODO: check if actually needed
     filesystem::path folderPath; // Path in the filesystem where the folder is currently present
 
+private:
+    boost::filesystem::path strip_root(const boost::filesystem::path& p);
+
 public:
     Folder(const std::string &owner, const std::string &path);
 
@@ -24,5 +27,4 @@ public:
     ssize_t getFileSize(const filesystem::path &path);
     bool deleteFile(filesystem::path); // Deletes a file in the specified path
     uint32_t getChecksum(); // Calculate and return checksum;
-
 };

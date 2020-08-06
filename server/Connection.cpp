@@ -243,15 +243,6 @@ void Connection::sendDirectory() {
 
 }
 
-//toglie la directory user dal path
-boost::filesystem::path Connection::strip_root(const boost::filesystem::path& p) {
-    const boost::filesystem::path& parent_path = p.parent_path();
-    if (parent_path.empty() || parent_path.string() == "/")
-        return boost::filesystem::path();
-    else
-        return strip_root(parent_path) / p.filename();
-}
-
 void Connection::receiveFile() {
     Message m = awaitMessage();
     //sendMessage(Message("OK")); 
