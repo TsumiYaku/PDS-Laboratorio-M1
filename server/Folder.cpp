@@ -93,10 +93,11 @@ bool Folder::readFile(const filesystem::path &path, char *buf, size_t size) {
     try {
         size_t fileSize = filesystem::file_size(path);
         if (size > fileSize) size = fileSize;
-
+        std::cout << path << " " << size <<std::endl;
         filesystem::ifstream file;
         file.open(path, ios::in | ios::binary);
         file.read(buf, size);
+        std::cout << buf <<std::endl;
     }
     catch (filesystem::filesystem_error& e) { // File opening might cause a filesystem_error
         std::cout << e.what();

@@ -218,14 +218,14 @@ void Connection::sendDirectory() {
             std::cout << "DIRECTORY SEND " << m2.getFileWrapper().getPath() << std::endl;
         }else{
             ssize_t size = f->getFileSize(path);
-            std::cout << size <<std::endl;
+            //std::cout << size <<std::endl;
             char* buf = new char[size];
 
             if(!f->readFile(path, buf, size)) {
                 sendMessage(Message("FS_ERR"));
                 break;
             }
-
+            std::cout <<"CONTENT FILE " << buf << std::endl;
             sendMessage(Message("FILE"));
             Message m = awaitMessage(); //attendo un response da client
 
