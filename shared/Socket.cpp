@@ -71,7 +71,7 @@ ssize_t Socket::write(const char *buf, size_t len, int options) {
 
 //send integer
 ssize_t Socket::write(int* value, size_t len, int options) {
-    ssize_t res = send(sockfd, &value, len, options);
+    ssize_t res = send(sockfd, value, len, options);
     if (res < 0) {
         std::cerr << "Error during data sending: " << strerror(errno) << " | " << errno << std::endl;
         throw std::runtime_error("Error during data sending");

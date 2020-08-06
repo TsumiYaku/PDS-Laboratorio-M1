@@ -43,7 +43,7 @@ class Client{
     void inviaFile(path path_, FileStatus status); //ivia richiesta aggiunta/modifica file al server
     void downloadDirectory(); //scarica il contenuto inviato dal server fino alla recezione del messagio END
     std::string readline(); //legge una riga da command line del client
-    void sincronizzaFile(std::string path_, FileStatus status); //invia directory/file modificata al server in modalità asincrona (thread separato)
+    void sincronizzaFile(path path_, FileStatus status); //invia directory/file modificata al server in modalità asincrona (thread separato)
     void sendMessage(Message&&);
     Message awaitMessage(size_t);
     std::vector<filesystem::path> getContent(path dir);

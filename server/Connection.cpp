@@ -9,7 +9,7 @@ Message Connection::awaitMessage(size_t msg_size = 1024) {
     char buf[msg_size];
     int size = socket.read(buf, msg_size, 0);
     
-    std::cout << buf << " " << size << std::endl;
+    //std::cout << buf << " " << size << std::endl;
     // Unserialization
     std::stringstream sstream;
     sstream << buf;
@@ -19,6 +19,7 @@ Message Connection::awaitMessage(size_t msg_size = 1024) {
 
     if (logged)
         std::cout << "Received message from user: " << username << std::endl;
+   
     if(m.getType() == MessageType::text)
         std::cout << "Message received: " << m.getMessage() << std::endl;
     else
@@ -27,14 +28,10 @@ Message Connection::awaitMessage(size_t msg_size = 1024) {
 }
 
 void Connection::sendMessage(Message &&m) {
-    if (logged)
-        std::cout << "Sending message to user: " << username << std::endl;
-    if(m.getType() == MessageType::text)
-        std::cout << "Message sent: " << m.getMessage() << std::endl;
-    else
-        std::cout << "Sending file..." << m.getFileWrapper().getPath().relative_path()<< std::endl;
-
+   
+    //m.print();
     // Serialization
+
     std::stringstream sstream;
     Serializer oa(sstream);
     m.serialize(oa, 0);
@@ -42,6 +39,13 @@ void Connection::sendMessage(Message &&m) {
     // Socket write
     std::string s(sstream.str());
     socket.write(s.c_str(), strlen(s.c_str())+1, 0);
+
+    if (logged)
+        std::cout << "Sending message to user: " << username << std::endl;
+    if(m.getType() == MessageType::text)
+        std::cout << "Message sent: " << m.getMessage() << std::endl;
+    else
+        std::cout << "Sending file..." << m.getFileWrapper().getPath().relative_path()<< std::endl;
 }
 
 void Connection::run() {
@@ -75,10 +79,10 @@ void Connection::listenPackets() {
         if (terminate || !logged)
             return;
 
-        // Await further messages
+         //Await further messages
         Message m = awaitMessage();
 
-        // Client can't simply send files, must first send a message
+         //Client can't simply send files, must first send a message
         if(m.getType() == MessageType::file)
             sendMessage(Message("ERR"));
         else
@@ -90,7 +94,7 @@ void Connection::listenPackets() {
 void Connection::handlePacket(Message &&m) {
     std::string msg(m.getMessage());
     std::string response;
-    std::cout << msg << std::endl;
+    //std::cout << msg << std::endl;
 
     // Check what message has been received
     // TODO: can't we somehow use a switch? Doesn't allow me with std::string
@@ -125,6 +129,7 @@ void Connection::synchronize() {
 
 void Connection::sendChecksum() {
     int data = (int)f->getChecksum();
+    std::cout << "SEND CHECKSUM: " << data << std::endl;
     ssize_t size = socket.write(&data, sizeof(data), 0);
 }
 
@@ -133,40 +138,65 @@ void Connection::receiveDirectory() {
     char buf[1024];
     std::stringstream ss;
     while(true) {
-        // Receive file or generic message
+        Message m = awaitMessage();
+        sendMessage(Message("OK"));
+        if(m.getMessage().compare("END") == 0) break;
+        if(m.getMessage().compare("FS_ERR") == 0) break;
+        if(m.getMessage().compare("ERR") == 0) continue;
+        
 
-        /*Message m = awaitMessage();
-        if(m.getMessage().compare("CKECK") == 0)
-            sendMessage(Message("ACK"));
-        else
-            sendMessage(Message("ERR"));*/
-
-        //TO DO BETTER
+        //recieve message FILE and after recieve filewrapper
         int size = socket.read(buf, sizeof(buf), 0);
         ss << buf;
-        if (ss.str().find("END") != std::string::npos) break;//archivio contiene END
-
-        Deserializer ia(ss);
-        Message m(MessageType::file);
-        m.unserialize(ia, 0);
-        FileWrapper file = m.getFileWrapper();
-        switch (file.getStatus()) {
-            case FileStatus::created: {
-                char *data = file.getData();
-                f->writeFile(file.getPath().relative_path(), data, sizeof(data));
-                break;
+        
+        if(m.getMessage().compare("DIRECTORY") == 0 )
+        {
+            Deserializer ia(ss);
+            Message m = Message(MessageType::file);
+            m.unserialize(ia, 0);
+            FileWrapper file = m.getFileWrapper();
+            std::cout << " DIRECTORY " << file.getPath() <<std::endl;
+            switch (file.getStatus()) {
+                case FileStatus::created: {
+                    f->writeDirectory(file.getPath().relative_path());
+                    break;
+                }
+                case FileStatus::modified: {
+                    f->writeDirectory(file.getPath().relative_path());
+                    break;
+                }
+                case FileStatus::erased: {
+                    f->deleteFile(file.getPath().relative_path());
+                    break;
+                }
+                default:
+                    break;
             }
-            case FileStatus::modified: {
-                char *data = file.getData();
-                f->writeFile(file.getPath().relative_path(), data, sizeof(data));
-                break;
+        }
+        else{
+            Deserializer ia(ss);
+            Message m = Message(MessageType::file);
+            m.unserialize(ia, 0);
+            FileWrapper file = m.getFileWrapper();
+            std::cout << " FILE " << file.getPath() <<std::endl;
+            switch (file.getStatus()) {
+                case FileStatus::created: {
+                    char *data = file.getData();
+                    f->writeFile(file.getPath().relative_path(), data, strlen(data));
+                    break;
+                }
+                case FileStatus::modified: {
+                    char *data = file.getData();
+                    f->writeFile(file.getPath().relative_path(), data, strlen(data));
+                    break;
+                }
+                case FileStatus::erased: {
+                    f->deleteFile(file.getPath().relative_path());
+                    break;
+                }
+                default:
+                    break;
             }
-            case FileStatus::erased: {
-                f->deleteFile(file.getPath().relative_path());
-                break;
-            }
-            default:
-                break;
         }
 
         sendMessage(Message("ACK"));
@@ -177,37 +207,66 @@ void Connection::sendDirectory() {
     std::cout << "Sending directory to user " << username << std::endl;
 
     for (const filesystem::path& path : f->getContent()) {
-        if(filesystem::is_directory(path)) continue;
 
-        ssize_t size = f->getFileSize(path);
-        char* buf = new char[size];
+        if(filesystem::is_directory(path)) {
+            sendMessage(Message("DIRECTORY"));
+            Message m = awaitMessage();
+            std::cout << strip_root(path).string() << std::endl;
+            FileWrapper file = FileWrapper(strip_root(path), strdup(""), FileStatus::created); // TODO: check if 'created' is the right status
+            Message m2 = Message(std::move(file));
+            sendMessage(std::move(m2));
+            std::cout << "DIRECTORY SEND " << m2.getFileWrapper().getPath() << std::endl;
+        }else{
+            ssize_t size = f->getFileSize(path);
+            std::cout << size <<std::endl;
+            char* buf = new char[size];
 
-        if(!f->readFile(path, buf, size)) {
-            sendMessage(Message("FS_ERR"));
-            break;
+            if(!f->readFile(path, buf, size)) {
+                sendMessage(Message("FS_ERR"));
+                break;
+            }
+
+            sendMessage(Message("FILE"));
+            Message m = awaitMessage(); //attendo un response da client
+
+            FileWrapper file = FileWrapper(strip_root(path), buf, FileStatus::created); // TODO: check if 'created' is the right status
+            Message m2 = Message(std::move(file));
+            //m2.print();
+            sendMessage(std::move(m2));
+            
+            m = awaitMessage();   //attendo response (TODO BETTER)
+
         }
-
-        FileWrapper file(path, buf, FileStatus::created); // TODO: check if 'created' is the right status
-        sendMessage(Message(std::move(file)));
     }
 
-    sendMessage(Message("TERMINATED"));
+    sendMessage(Message("END"));
 
+}
+
+//toglie la directory user dal path
+boost::filesystem::path Connection::strip_root(const boost::filesystem::path& p) {
+    const boost::filesystem::path& parent_path = p.parent_path();
+    if (parent_path.empty() || parent_path.string() == "/")
+        return boost::filesystem::path();
+    else
+        return strip_root(parent_path) / p.filename();
 }
 
 void Connection::receiveFile() {
     Message m = awaitMessage();
+    //sendMessage(Message("OK")); 
+
 
     FileWrapper file = m.getFileWrapper();
     switch (file.getStatus()) {
         case FileStatus::created: {
             char *data = file.getData();
-            f->writeFile(file.getPath(), data, sizeof(data));
+            f->writeFile(file.getPath(), data, strlen(data));
             break;
         }
         case FileStatus::modified: {
             char *data = file.getData();
-            f->writeFile(file.getPath(), data, sizeof(data));
+            f->writeFile(file.getPath(), data, strlen(data));
             break;
         }
         case FileStatus::erased: {

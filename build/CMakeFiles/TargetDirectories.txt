@@ -1,0 +1,11 @@
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/CMakeFiles/rebuild_cache.dir
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/CMakeFiles/edit_cache.dir
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/shared/CMakeFiles/rebuild_cache.dir
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/shared/CMakeFiles/shared.dir
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/shared/CMakeFiles/edit_cache.dir
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/server/CMakeFiles/rebuild_cache.dir
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/server/CMakeFiles/server.dir
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/server/CMakeFiles/edit_cache.dir
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/client/CMakeFiles/rebuild_cache.dir
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/client/CMakeFiles/client.dir
+/home/fiore/Scrivania/PDS/PDS-Laboratorio-M1/build/client/CMakeFiles/edit_cache.dir
