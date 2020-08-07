@@ -1,6 +1,4 @@
 add_executable(server
-        Folder.cpp
-        Folder.h
         main.cpp
         ServerSocket.cpp
         ServerSocket.h

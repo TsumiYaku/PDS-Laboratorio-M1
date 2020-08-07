@@ -2,7 +2,7 @@
 #include <Socket.h>
 #include <packets/Message.h>
 #include <packets/FileWrapper.h>
-#include "Folder.h"
+#include <Folder.h>
 #include <mutex>
 
 class Connection {

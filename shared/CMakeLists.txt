@@ -8,6 +8,8 @@ add_library(shared
         packets/FileWrapper.cpp
         packets/FileWrapper.h
         packets/main.cpp
-        packets/FileStatus.h)
+        packets/FileStatus.h
+        Folder.cpp
+        Folder.h)
 
 target_include_directories(shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
