@@ -118,7 +118,7 @@ void Connection::synchronize() {
         return;
     else if(msg == "UPDATE") {
         sendMessage(Message("ACK"));
-        remove_all(f->getPath());
+        f->wipeFolder();
         downloadDirectory();
     }
     else if(msg == "DOWNLOAD") {

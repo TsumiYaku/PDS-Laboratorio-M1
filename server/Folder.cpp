@@ -35,10 +35,7 @@ bool Folder::writeFile(const filesystem::path &path, char *buf, size_t size) {
     try {
         // If file doesn't exist create a folder for it (recursively if needed)
         if(!filesystem::exists(filePath.parent_path()))
-        {
             filesystem::create_directories(this->folderPath);
-
-        }
 
         // Write buf data into the file (might need to change to binary)
         filesystem::ofstream file;
@@ -60,24 +57,11 @@ filesystem::path Folder::getPath(){
 }
 
 bool Folder::writeDirectory(const filesystem::path &path) {
-    filesystem::path filePath;
-    //std::cout << path.string().substr(0,2) <<std::endl;
-    if(path.string().substr(0,2) == "./"){
-         filePath = this->folderPath/path.string().substr(2, path.string().length() - 2);
-    }
-    else
-        filePath = this->folderPath/path;
+    filesystem::path filePath = this->folderPath/path;
 
     std::cout << "WRITE DIRECTORY PATH: " << filePath << std::endl;
     try {
-        // If file doesn't exist create a folder for it (recursively if needed)
-        if(!filesystem::exists(filePath.parent_path()))
-        {
-            //std::cout << filePath.string() << std::endl;
-            filesystem::create_directories(this->folderPath);
-        }
         filesystem::create_directories(filePath);
-
     }
     catch (filesystem::filesystem_error& e) { // File opening might cause a filesystem_error
         std::cout << e.what();
@@ -88,10 +72,9 @@ bool Folder::writeDirectory(const filesystem::path &path) {
 }
 
 bool Folder::readFile(const filesystem::path &path, char *buf, size_t size) {
+    filesystem::path filePath = this->folderPath/path;
 
     std::cout <<"READ FILE PATH: " << path << std::endl;
-
-    filesystem::path filePath = this->folderPath/path;
 
     if(!filesystem::exists(path))
         return false;
@@ -114,18 +97,20 @@ bool Folder::readFile(const filesystem::path &path, char *buf, size_t size) {
 }
 
 ssize_t Folder::getFileSize(const filesystem::path &path) {
+    filesystem::path filePath = this->folderPath/path;
 
     std::cout <<"GET SIZE PATH: " << path << std::endl;
 
-    if(!filesystem::exists(path))
+    if(!filesystem::exists(filePath))
         return -1;
 
-    return filesystem::file_size(path);
+    return filesystem::file_size(filePath);
 }
 
 // Delete file at the specified path
 bool Folder::deleteFile(filesystem::path path) {
-    int removed = filesystem::remove_all(this->folderPath/path);
+    filesystem::path filePath = this->folderPath/path;
+    int removed = filesystem::remove_all(filePath);
     return removed > 0; //might change it to something better
 }
 
@@ -145,4 +130,10 @@ boost::filesystem::path Folder::strip_root(const boost::filesystem::path& p) {
         return boost::filesystem::path();
     else
         return strip_root(parent_path) / p.filename();
+}
+
+void Folder::wipeFolder() {
+    std::cout << "Wiping folder content" << std::endl;
+    filesystem::remove_all(this->folderPath);
+    filesystem::create_directory(this->folderPath);
 }
