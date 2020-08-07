@@ -9,7 +9,7 @@ Connection::Connection(Socket&& socket) {
 Connection::~Connection() {
     std::lock_guard<std::mutex> lg(dbLock);
     users.remove(username);
-    std::cout << "User " << username << "disconnected" << std::endl;
+    std::cout << "User " << username << " disconnected" << std::endl;
 }
 
 Message Connection::awaitMessage(size_t msg_size = SIZE_MESSAGE_TEXT) {

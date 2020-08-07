@@ -184,6 +184,7 @@ void Client::monitoraCartella(std::string p){
                 }
 
                 while(true){
+                    // TODO: END is sent before the threads can finish sending all files!!!!
                     Message m = Message("END");
                     sendMessage(std::move(m));
                     m = awaitMessage();
@@ -341,8 +342,8 @@ void Client::downloadDirectory(){
 }
 
 void Client::inviaFile(filesystem::path path_to_watch, FileStatus status) /*throw(filesystem::filesystem_error, std::runtime_error)*/{
-    //std::thread synch([this, path_to_watch, status] (Socket sock) -> void {
-        //std::lock_guard<std::mutex> lg(this->mu);
+    std::thread synch([this, path_to_watch, status] () -> void {
+        std::lock_guard<std::mutex> lg(this->mu);
 
         //path p(path_to_watch);
         std::stringstream ss;
@@ -389,9 +390,9 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status) /*thro
                 m2.serialize(ia, 0);
                 std::string s(ss.str());
                 size = s.length() + 1;
-                sock.write(&size, sizeof(size), 0);//invio taglia testo da deserializzare
+                this->sock.write(&size, sizeof(size), 0);//invio taglia testo da deserializzare
                 m = awaitMessage(); //attendo ACK
-                sock.write(s.c_str(), strlen(s.c_str())+1, 0);//invio testo serializzato
+                this->sock.write(s.c_str(), strlen(s.c_str())+1, 0);//invio testo serializzato
                 //sendMessage(std::move(m2));
                 
                 std::cout << "FILE SEND " << relativeContent << std::endl;
@@ -428,6 +429,6 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status) /*thro
 
         //ho finito di inviare file
         
-     //}, std::move(sock));
-    //synch.detach();
+    });
+    synch.detach();
 }
