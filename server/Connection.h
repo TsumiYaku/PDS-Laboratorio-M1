@@ -4,6 +4,7 @@
 #include <packets/FileWrapper.h>
 #include <Folder.h>
 #include <mutex>
+#include <list>
 
 class Connection {
     Socket socket;
@@ -11,6 +12,8 @@ class Connection {
     Folder *f;
     bool logged = false;
     bool terminate = false;
+    static std::list<std::string> users;
+    static std::mutex dbLock;
 
 private:
     Message awaitMessage(size_t);
@@ -28,6 +31,7 @@ public:
     Connection(const Connection&) = delete;
     Connection(Connection&&);
     Connection& operator=(Connection&&);
+    ~Connection();
 
     void run();
 

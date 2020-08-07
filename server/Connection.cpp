@@ -1,7 +1,14 @@
 #include "Connection.h"
+std::mutex Connection::dbLock;
+std::list<std::string> Connection::users;
 
 Connection::Connection(Socket&& socket) {
      this->socket = std::move(socket);
+}
+
+Connection::~Connection() {
+    std::lock_guard<std::mutex> lg(dbLock);
+    users.remove(username);
 }
 
 Message Connection::awaitMessage(size_t msg_size = SIZE_MESSAGE_TEXT) {
@@ -67,18 +74,32 @@ void Connection::run() {
         logged = true;
         f = new Folder(username, username);
 
+        Connection::dbLock.lock();
+        if (std::find(users.begin(), users.end(), username) != users.end()) {
+            std::cout << "User already logged" << std::endl;
+            sendMessage(Message("NOT_OK"));
+            return;
+        }
+        else
+            users.push_back(username);
+
+
+        Connection::dbLock.unlock();
+
         std::cout << "User " << username << " successfully authenticated" << std::endl;
         sendMessage(Message("OK"));
     }
 
-    listenPackets();
+    try { // TODO: TEMPORARY WORKAROUND, MUST implement better error management
+        listenPackets();
+    }
+    catch (...) {
+        return;
+    }
 }
 
 void Connection::listenPackets() {
-    while(true) {
-        if (terminate || !logged)
-            return;
-
+    while(!terminate && logged) {
          //Await further messages
         Message m = awaitMessage();
 
