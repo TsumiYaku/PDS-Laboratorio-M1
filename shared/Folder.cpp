@@ -16,7 +16,7 @@ std::vector<filesystem::path> Folder::getContent() {
     // Recursive research inside the folder
     std::cout <<"CONTENT DIR: " << std::endl;
     for(filesystem::directory_entry& d : filesystem::recursive_directory_iterator(this->folderPath)){
-        v.push_back(d.path());
+        v.push_back(strip_root(d.path()));
          std::cout << strip_root(d.path()) <<std::endl;
     }
 

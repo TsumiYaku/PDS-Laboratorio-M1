@@ -178,6 +178,7 @@ void Client::monitoraCartella(std::string p){
                 for(filesystem::path path: directory->getContent()){
                 
                 std::cout << "INVIO DI: " << path << std::endl;
+                path = directory->getPath()/path;
 
                 inviaFile(path, FileStatus::modified);
                 }
