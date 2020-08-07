@@ -14,8 +14,11 @@ std::vector<filesystem::path> Folder::getContent() {
     std::vector<filesystem::path> v;
 
     // Recursive research inside the folder
-    for(filesystem::directory_entry& d : filesystem::recursive_directory_iterator(this->folderPath))
-        v.push_back(strip_root(d.path()));
+    std::cout <<"CONTENT DIR: " << std::endl;
+    for(filesystem::directory_entry& d : filesystem::recursive_directory_iterator(this->folderPath)){
+        v.push_back(d.path());
+         std::cout << strip_root(d.path()) <<std::endl;
+    }
 
     return v;
 }
@@ -23,12 +26,8 @@ std::vector<filesystem::path> Folder::getContent() {
 // Create or replace file using specified path and data in buf
 bool Folder::writeFile(const filesystem::path &path, char *buf, size_t size) {
     filesystem::path filePath;
-    //std::cout << path.string().substr(0,2) <<std::endl;
-    if(path.string().substr(0,2) == "./"){
-         filePath = this->folderPath/path.string().substr(2, path.string().length() - 2);
-    }
-    else
-        filePath = this->folderPath/path;
+
+    filePath = this->folderPath/path;
 
     std::cout <<"WRITE FILE PATH: " << filePath << std::endl;
 
@@ -74,19 +73,22 @@ bool Folder::writeDirectory(const filesystem::path &path) {
 bool Folder::readFile(const filesystem::path &path, char *buf, size_t size) {
     filesystem::path filePath = this->folderPath/path;
 
-    std::cout <<"READ FILE PATH: " << path << std::endl;
+    std::cout <<"READ FILE PATH: " << filePath << std::endl;
 
-    if(!filesystem::exists(path))
+    if(!filesystem::exists(filePath))
         return false;
 
     try {
         size_t fileSize = filesystem::file_size(filePath);
         if (size > fileSize) size = fileSize;
-        std::cout << path << " " << size <<std::endl;
+        //std::cout << filePath << " " << size <<std::endl;
         filesystem::ifstream file;
-        file.open(path, ios::in | ios::binary);
-        file.read(buf, size);
-        std::cout << buf <<std::endl;
+        file.open(filePath, ios::in | ios::binary);
+        file.read(buf, size-1);
+        
+        file.close();
+        std::cout <<"BUFFER: " << buf <<std::endl;
+        
     }
     catch (filesystem::filesystem_error& e) { // File opening might cause a filesystem_error
         std::cout << e.what();
@@ -99,11 +101,10 @@ bool Folder::readFile(const filesystem::path &path, char *buf, size_t size) {
 ssize_t Folder::getFileSize(const filesystem::path &path) {
     filesystem::path filePath = this->folderPath/path;
 
-    std::cout <<"GET SIZE PATH: " << path << std::endl;
-
     if(!filesystem::exists(filePath))
         return -1;
 
+    std::cout <<"GET SIZE PATH: " << filePath <<  " SIZE: " <<  filesystem::file_size(filePath) << std::endl;
     return filesystem::file_size(filePath);
 }
 
@@ -137,3 +138,13 @@ void Folder::wipeFolder() {
     filesystem::remove_all(this->folderPath);
     filesystem::create_directory(this->folderPath);
 }
+
+std::string Folder::removeFolderPath(std::string path){
+    //if(filesystem::exists(filesystem::path(path)) /*&& p.find(directory->getPath().string()) != std::string::npos*/){
+        int lengthPath = folderPath.string().length();
+        std::string directory_monitor = path.substr(lengthPath+1, path.length() - (lengthPath));
+        return directory_monitor; //return prova/a/....
+        //std::string folderPath = p.substr(0, (pos_last_slash));
+    //}
+    //return "";
+} 

@@ -16,6 +16,7 @@
 #include <packets/Message.h>
 #include <Socket.h>
 #include <Checksum.h>
+#include <Folder.h>
 #include <boost/serialization/serialization.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
@@ -38,16 +39,18 @@ class Client{
     std::string user;
     struct sockaddr_in* sad;
     std::string address;
+
+    Folder* directory;
+
     int port;
     
     void inviaFile(path path_, FileStatus status); //ivia richiesta aggiunta/modifica file al server
     void downloadDirectory(); //scarica il contenuto inviato dal server fino alla recezione del messagio END
-    std::string readline(); //legge una riga da command line del client
+    //std::string readline(); //legge una riga da command line del client
     void sincronizzaFile(path path_, FileStatus status); //invia directory/file modificata al server in modalità asincrona (thread separato)
     void sendMessage(Message&&);
     Message awaitMessage(size_t);
-    std::vector<filesystem::path> getContent(path dir);
-    uint32_t getChecksum(path p);
+
 
 public:
     Client(const Client&) = delete;

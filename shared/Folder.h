@@ -14,10 +14,10 @@ class Folder {
     std::string name; // Name of the folder; TODO: check if actually needed
     filesystem::path folderPath; // Path in the filesystem where the folder is currently present
 
-private:
-    boost::filesystem::path strip_root(const boost::filesystem::path& p);
+    
 
 public:
+    boost::filesystem::path strip_root(const boost::filesystem::path& p);
     Folder(const std::string &owner, const std::string &path);
     filesystem::path getPath();
     std::vector<filesystem::path> getContent(); // Return content of the folder
@@ -28,4 +28,5 @@ public:
     bool deleteFile(filesystem::path); // Deletes a file in the specified path
     void wipeFolder(); // Completely wipes the content of the folder
     uint32_t getChecksum(); // Calculate and return checksum;
+    std::string removeFolderPath(std::string p);
 };

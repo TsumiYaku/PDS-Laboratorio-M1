@@ -44,7 +44,7 @@ public:
             case FileStatus::erased: ar & 2; break;
         }
         ar & len;
-        ar & serialization::make_array<char>(data, len+1);
+        ar & serialization::make_array<char>(data, len);
     }
 
     template<class Archive>
@@ -61,6 +61,6 @@ public:
         }
         ar & len;
         data = new char[len];
-        ar & serialization::make_array<char>(data, len+1);
+        ar & serialization::make_array<char>(data, len);
     }
 };

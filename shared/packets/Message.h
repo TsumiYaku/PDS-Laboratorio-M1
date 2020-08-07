@@ -5,6 +5,7 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include "FileWrapper.h"
+#define SIZE_MESSAGE_TEXT 1024
 
 using Serializer = boost::archive::text_oarchive;
 using Deserializer = boost::archive::text_iarchive;

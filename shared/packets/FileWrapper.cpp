@@ -42,6 +42,7 @@ filesystem::path FileWrapper::getPath(){
     return filePath;
 }
 
+
 char* FileWrapper::getData(){
     return data;
 }
