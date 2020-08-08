@@ -1,31 +1,4 @@
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <string>
-#include <thread>
-#include <mutex>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <functional>
-#include <fcntl.h>
-#include <string.h>
-#include <stdexcept>
-#include <ios>
-
 #include "Client.h"
-#include <packets/FileWrapper.h>
-#include <packets/Message.h>
-
-#include <boost/serialization/serialization.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/serialization/access.hpp>
-#include <boost/serialization/string.hpp>
-
-using namespace boost::filesystem;
-using Serializer = boost::archive::text_oarchive;
-using Deserializer = boost::archive::text_iarchive;
 
 std::mutex mout;
 void log(std::string msg){
@@ -33,10 +6,9 @@ void log(std::string msg){
     std::cout<<msg<<std::endl;
 }
 
-
-
 /*************************CLIENT********************************************/
-Client::Client(std::string address, int port): address(address), port(port), status(start){
+Client::Client(std::string address, int port): address(address), port(port){
+        cont_error = 0;
         struct sockaddr_in sockaddrIn;
         sockaddrIn.sin_port = ntohs(port);
         sockaddrIn.sin_family = AF_INET;
@@ -49,7 +21,7 @@ Client::Client(std::string address, int port): address(address), port(port), sta
 Client::Client(Client &&other) {
 
     this->sock = std::move(sock);
-    this->status = other.status;
+    this->cont_error = other.cont_error;
     this->sad = other.sad;
     this->directory = other.directory;
     this->address = std::move(other.address);
@@ -63,7 +35,7 @@ Client::Client(Client &&other) {
 Client &Client::operator=(Client &&other) {
     if(this->user != other.user){
         this->sock = std::move(sock);
-        this->status = other.status;
+        this->cont_error = other.cont_error;
         this->sad = other.sad;
         this->directory = other.directory;
         this->address = std::move(other.address);
@@ -102,20 +74,30 @@ Message Client::awaitMessage(size_t msg_size = SIZE_MESSAGE_TEXT) {
     return m;
 }
 
+void Client::sendMessageWithResponse(std::string message, std::string response) {
+    while(true){
+         Message m = Message(message);
+         sendMessage(std::move(m));
+         //read response
+         m = awaitMessage();
+        if(m.getMessage().compare(response) == 0) break;
+    }
+}
+
 void Client::close() /*throw(std::runtime_error)*/{
-    status = closed;
     sock.closeSocket();     
 }
 
 Client::~Client(){
+    std::cout <<"Client diconnetted..." << std::endl;
     close();
 }
 
-bool Client::doLogin(std::string user, std::string password){
-    this->user = user;
+bool Client::doLogin(std::string user){
+    
     Message m = Message(MessageType::text);
     while(true){
-        m = Message("LOGIN_" + user + "_" + password);
+        m = Message("LOGIN_" + user);
         sendMessage(std::move(m));
 
         //read response
@@ -124,175 +106,142 @@ bool Client::doLogin(std::string user, std::string password){
         if(m.getMessage().compare("OK") == 0 || m.getMessage().compare("NOT_OK") == 0) break;
     }
 
-    if(m.getMessage().compare("OK") == 0) //login effettuato con successo
+    if(m.getMessage().compare("OK") == 0){
+        this->user = user; //login effettuato con successo
         return true;
+    }
     return false; //login non effettuato
 }
 
 
+void Client::monitoraCartella(std::string folder){
+        
+        while(true){ //ritento sincornizzazione iniziale in casi di errori per NUM.. volte, altrimenti confuto un errore permanente e chiudo il programma
+            try{
+                directory = new Folder(user, folder);
+            
+                path dir(folder);
 
-/*std::string Client::getFolderPath(std::string p){//usato all'inizio per determinare la gerarchia che  contiene la cartella da monitorare
-    if(exists(p)){
-            int pos_last_slash = p.find_last_of("/");
-        int lengthPath = p.length();
-        //std::string directory_monitor = p.substr(pos_last_slash+1, lengthPath - (pos_last_slash + 1));
-        std::string folderPath = p.substr(0, (pos_last_slash));
-        return folderPath;
-    }
-    return "";
-}*/
+                std::cout <<"MONITORING " << dir.string() << std::endl;
 
-
-void Client::monitoraCartella(std::string p){
-    
-    directory = new Folder(user, p);
-
-    path dir(p);
-    std::cout <<"MONITORING " << dir.string() << std::endl;
-
-    Message m = Message("SYNC");
-    sendMessage(std::move(m));
-
-    int checksumServer = 0;
-    int checksumClient = (int)directory->getChecksum();
-    
-    sock.read(&checksumServer, sizeof(checksumServer), 0);//ricevo checksum da server
-    std::cout << "CHECKSUM CLIENT " << checksumClient <<std::endl;
-    std::cout << "CHECKSUM SERVER " << checksumServer <<std::endl;
-
-    if(exists(dir) && checksumClient!=0){ //la cartella esiste e quindi la invio al server  
-        if((checksumServer == 0 && checksumClient != 0) || (checksumClient != checksumServer)){//invio tutta la directory per sincornizzare
-            //invio richiesta update directory server (fino ad ottenere response ACK)
-            while(true){
-                Message m = Message("UPDATE");
-
+                Message m = Message("SYNC");
                 sendMessage(std::move(m));
 
-                //read response
-                m = awaitMessage();
-
-                if(m.getMessage().compare("ACK") == 0) break;
-            }
-
-            //invio solo i file con checksum diverso
-                for(filesystem::path path: directory->getContent()){
+                int checksumServer = 0;
+                int checksumClient = (int)directory->getChecksum();
                 
-                std::cout << "INVIO DI: " << path << std::endl;
-                path = directory->getPath()/path;
+                sock.read(&checksumServer, sizeof(checksumServer), 0); //ricevo checksum da server
+                std::cout << "CHECKSUM CLIENT " << checksumClient <<std::endl;
+                std::cout << "CHECKSUM SERVER " << checksumServer <<std::endl;
 
-                inviaFile(path, FileStatus::modified);
+                if(exists(dir) && checksumClient!=0){ //la cartella esiste e quindi la invio al server  
+                    if((checksumServer == 0 && checksumClient != 0) || (checksumClient != checksumServer)){//invio tutta la directory per sincronizzare
+                        //invio richiesta update directory server (fino ad ottenere response ACK)
+                        sendMessageWithResponse("UPDATE", "ACK");
+                        //invio solo i file con checksum diverso
+                        for(filesystem::path path: directory->getContent()){ 
+                          path = directory->getPath()/path;
+                          std::cout << "SENDING: " << path << std::endl;
+                          inviaFile(path, FileStatus::modified);
+                        }
+
+                        sendMessageWithResponse("END", "OK");
+                        /*while(true){
+                            // TODO: END is sent before the threads can finish sending all files!!!!
+                            Message m = Message("END");
+                            sendMessage(std::move(m));
+                            m = awaitMessage();
+                        if(m.getMessage().compare("OK") == 0) break;
+                        }*/     
+                    }
                 }
-
-                while(true){
-                    // TODO: END is sent before the threads can finish sending all files!!!!
-                    Message m = Message("END");
+                else if(checksumServer != 0 && checksumClient==0){ 
+                    sendMessageWithResponse("DOWNLOAD", "ACK");
+                    downloadDirectory(); //scarico contenuto del server
+                }else{
+                    Message m = Message("OK");
                     sendMessage(std::move(m));
-                    m = awaitMessage();
-                if(m.getMessage().compare("OK") == 0) break;
-                }      
-        }
-    }
-    else if(checksumServer != 0 && checksumClient==0){ 
-        while(true){
-            Message m = Message("DOWNLOAD");
-            sendMessage(std::move(m));
-
-            //read response
-            m = awaitMessage();
-
-            if(m.getMessage().compare("ACK") == 0) break;
-        }
-
-        downloadDirectory(); //scarico contenuto del server
-    
-    }else{
-        Message m = Message("OK");
-        sendMessage(std::move(m));
-    }
-
-
-    //mi metto in ascolto e attendo una modifica
-    FileWatcher fw{p, std::chrono::milliseconds(1000)};
-    fw.start([this](std::string path_to_watch, FileStatus status) -> void {
-        switch(status) {
-            case FileStatus::created:{
-                std::cout << "Created: " << path_to_watch << '\n';
-                //invio richiesta creazione file
-                while(true){
-                    Message m = Message("CREATE");
-                    sendMessage(std::move(m));
-
-                    //read response
-                    m = awaitMessage();
-
-                    if(m.getMessage().compare("ACK") == 0) break;
                 }
-
-                //invio file
-                inviaFile(path(path_to_watch), FileStatus::created); 
-
-                while(true){
-                    Message m = Message("END");
-                    sendMessage(std::move(m));
-                    m = awaitMessage();
-                    if(m.getMessage().compare("OK") == 0) break;
-                } 
-                break;
-            }
-            case FileStatus::modified:{
-            //dico al server che è stato modificato un file e lo invio al server
-                std::cout << "Modified: " << path_to_watch << '\n';
-
-                //invio richiesta modifica
-                while(true){
-                    Message m = Message("MODIFY");
-                    sendMessage(std::move(m));
-
-                    //read response
-                    m = awaitMessage();
-
-                    if(m.getMessage().compare("ACK") == 0) break;
-                }           
-
-                //invio il file
-                inviaFile(path(path_to_watch), FileStatus::modified);
-                
-                while(true){
-                    Message m = Message("END");
-                    sendMessage(std::move(m));
-                    m = awaitMessage();
-                    if(m.getMessage().compare("OK") == 0) break;
+                break; //ho eseguito tutto correttamente
+            }catch(std::runtime_error& e){
+                    std::cout << e.what() << std::endl;
+                    std::cout << "TRY TO RESOLVE..." << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    cont_error++;
+                    if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+                        exit(-1);
                 }
-                break;
-            }
-            case FileStatus::erased:{
-            //dico al server che è stato modificato un file e lo invio al server
-                std::cout << "Erased: " << path_to_watch << '\n';
-                //invio richiesta cancellazione
-                while(true){
-                    Message m = Message("ERASE");
-                    sendMessage(std::move(m));
-
-                    //read response
-                    m = awaitMessage();
-
-                    if(m.getMessage().compare("ACK") == 0) break;
+                catch(boost::filesystem::filesystem_error& e){
+                    std::cout << e.what() << std::endl;
+                    std::cout << "TRY TO RESOLVE..." << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    cont_error++;
+                    if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+                        exit(-1);
                 }
-                //invio file
-                inviaFile(path(path_to_watch), FileStatus::erased); 
-                while(true){
-                    Message m = Message("END");
-                    sendMessage(std::move(m));
-                    m = awaitMessage();
-                    if(m.getMessage().compare("OK") == 0) break;
+            };
+
+            //mi metto in ascolto e attendo una modifica
+            FileWatcher fw{folder, std::chrono::milliseconds(1000)};
+            fw.start([this](std::string path_to_watch, FileStatus status) -> void {
+                try{
+                    switch(status) {
+                        case FileStatus::created:{
+                            std::cout << "Created: " << path_to_watch << '\n';
+                            //invio richiesta creazione file
+                            sendMessageWithResponse("CREATE", "ACK");
+
+                            //invio file
+                            inviaFile(path(path_to_watch), FileStatus::created); 
+
+                            sendMessageWithResponse("END", "OK");
+                            break;
+                        }
+                        case FileStatus::modified:{
+                            //dico al server che è stato modificato un file e lo invio al server
+                            std::cout << "Modified: " << path_to_watch << '\n';
+
+                            //invio richiesta modifica
+                            sendMessageWithResponse("MODIFY", "ACK");           
+
+                            //invio il file
+                            inviaFile(path(path_to_watch), FileStatus::modified);
+                            
+                            sendMessageWithResponse("END", "OK");
+                            break;
+                        }
+                        case FileStatus::erased:{
+                            //dico al server che è stato modificato un file e lo invio al server
+                            std::cout << "Erased: " << path_to_watch << '\n';
+                            //invio richiesta cancellazione
+                            sendMessageWithResponse("ERASE", "ACK");
+                            //invio file
+                            inviaFile(path(path_to_watch), FileStatus::erased); 
+
+                            sendMessageWithResponse("END", "OK");
+                        }
+                        case FileStatus::nothing:{
+                            break;
+                        }
+                        default:break;
+                    }
+                }catch(std::runtime_error& e){
+                    std::cout << e.what() << std::endl;
+                    std::cout << "TRY TO RESOLVE..." << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    cont_error++;
+                    if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+                        exit(-2);
                 }
-            }
-            case FileStatus::nothing:{
-                break;
-            }
-            default:break;
-        }
-    }); 
+                catch(boost::filesystem::filesystem_error& e){
+                    std::cout << e.what() << std::endl;
+                    std::cout << "TRY TO RESOLVE..." << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    cont_error++;
+                    if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+                        exit(-2);
+                }
+        }); 
 }
 
 
@@ -405,7 +354,7 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status) /*thro
             }else if(!exists(path_to_watch)){ //file cancellato
                 Message m = Message("FILE_DEL");
                 sendMessage(std::move(m));
-                 filesystem::path relativeContent = path(directory->removeFolderPath(path_to_watch.string()));
+                filesystem::path relativeContent = path(directory->removeFolderPath(path_to_watch.string()));
 
                 FileWrapper f = FileWrapper(relativeContent , strdup(""), status);
                
@@ -426,8 +375,6 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status) /*thro
                 throw std::runtime_error("File not supported");
             }
         }
-
-        //ho finito di inviare file
         
     });
     synch.detach();
