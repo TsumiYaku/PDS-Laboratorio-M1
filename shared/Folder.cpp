@@ -15,11 +15,11 @@ std::vector<filesystem::path> Folder::getContent() {
 
     // Recursive research inside the folder
     std::cout <<"CONTENT DIR: " << std::endl;
-    for(filesystem::directory_entry& d : filesystem::recursive_directory_iterator(this->folderPath)){
-        v.push_back(strip_root(d.path()));
-         std::cout << strip_root(d.path()) <<std::endl;
-    }
 
+    for(filesystem::directory_entry& d : filesystem::recursive_directory_iterator(this->folderPath)){
+        v.push_back(removeFolderPath((d.path().string())));
+         //std::cout << removeFolderPath((d.path().string())) <<std::endl;
+    }
     return v;
 }
 
@@ -118,10 +118,28 @@ bool Folder::deleteFile(filesystem::path path) {
 // Calculate checksum and return/save it;
 uint32_t Folder::getChecksum() {
     Checksum checksum = Checksum();
-    for(filesystem::path path: this->getContent())
-        checksum.add(path.string());
+    for(filesystem::path path: this->getContent()){
+        filesystem::path path_complete = this->getPath()/path;
+        if(is_directory(path_complete))
+            checksum.add(path.string());
+        else{
+            size_t size = getFileSize(path);
+            if(size == -1) throw std::runtime_error("Error size file");
+            char* buf = new char[size];
+            if(!readFile(path, buf, size)) throw std::runtime_error("Error size file");
+            std::string ss(buf);
+            checksum.add(path.string() +  " " + ss); //calcolo checksum in base al percorso relativo del file + suo contenuto
+        }
+    }
 
     return checksum.getChecksum();
+}
+
+
+void Folder::wipeFolder() {
+    std::cout << "Wiping folder content" << std::endl;
+    filesystem::remove_all(this->folderPath);
+    filesystem::create_directory(this->folderPath);
 }
 
 //toglie la directory user dal path
@@ -133,18 +151,11 @@ boost::filesystem::path Folder::strip_root(const boost::filesystem::path& p) {
         return strip_root(parent_path) / p.filename();
 }
 
-void Folder::wipeFolder() {
-    std::cout << "Wiping folder content" << std::endl;
-    filesystem::remove_all(this->folderPath);
-    filesystem::create_directory(this->folderPath);
-}
-
 std::string Folder::removeFolderPath(std::string path){
-    //if(filesystem::exists(filesystem::path(path)) /*&& p.find(directory->getPath().string()) != std::string::npos*/){
+    if(path.find(this->getPath().string()) != std::string::npos){
         int lengthPath = folderPath.string().length();
         std::string directory_monitor = path.substr(lengthPath+1, path.length() - (lengthPath));
         return directory_monitor; //return prova/a/....
-        //std::string folderPath = p.substr(0, (pos_last_slash));
-    //}
-    //return "";
+    }
+    return path;
 } 

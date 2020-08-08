@@ -9,6 +9,8 @@
 
 using namespace boost;
 
+enum FolderType {client, server};
+
 class Folder {
     std::string owner; // Owner of the folder
     std::string name; // Name of the folder; TODO: check if actually needed

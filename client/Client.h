@@ -40,26 +40,26 @@ class Client{
     Folder* directory;
 
     int port;
-    
-    void inviaFile(path path_, FileStatus status); //ivia richiesta aggiunta/modifica file al server
+    int contFileToSend = 0;
+
+    void inviaFile(path, FileStatus, bool); //ivia file al server in modalità asincrona o sincrona(conThread = false)
     void downloadDirectory(); //scarica il contenuto inviato dal server fino alla recezione del messagio END
     //std::string readline(); //legge una riga da command line del client
-    void sincronizzaFile(path path_, FileStatus status); //invia directory/file modificata al server in modalità asincrona (thread separato)
     void sendMessage(Message&&);
     Message awaitMessage(size_t);
-    void sendMessageWithResponse(std::string message, std::string response);
+    void sendMessageWithResponse(std::string, std::string);
 
 
 public:
     Client(const Client&) = delete;
-
+    Client();
     Client& operator=(Client&&);
     Client(Client&&);
-    Client(std::string address, int port);
+    Client(std::string , int );
     ~Client();
     
     void close(); //chiude client
     //void recieveACK(Message&& m); //ricezione di un messaggio ACK
-    bool doLogin(std::string user); //effettua login. restituisce true se si è effettuato login da server o false se username è gia stato preso da altro user
-    void monitoraCartella(std::string path); //client in connessione con server e in ascolto per backup
+    bool doLogin(std::string ); //effettua login. restituisce true se si è effettuato login da server o false se username è gia stato preso da altro user
+    void monitoraCartella(std::string ); //client in connessione con server e in ascolto per backup
 };
