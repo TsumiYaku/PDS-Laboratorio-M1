@@ -101,3 +101,17 @@ void Socket::closeSocket() {
         sockfd = 0;
     }
 }
+
+void Socket::addToSet(fd_set& set, int& maxFd) {
+    FD_SET(sockfd, &set);
+    if(sockfd > maxFd)
+        maxFd = sockfd;
+}
+
+void Socket::removeFromSet(fd_set& set) {
+    FD_CLR(sockfd, &set);
+}
+
+bool Socket::isSet(fd_set& set) {
+    return FD_ISSET(sockfd, &set);
+}

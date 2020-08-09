@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <string>
 #include <netinet/in.h>
+#include <unistd.h>
 
 class Socket {
     Socket(const Socket &) = delete;
@@ -31,5 +32,10 @@ public:
     // Socket write
     ssize_t write(const char* buf, size_t len, int options);
     ssize_t write(int* value, size_t len, int options);
+
+    // Socket set management
+    void addToSet(fd_set& set, int& maxFd);
+    void removeFromSet(fd_set& set);
+    bool isSet(fd_set& set);
 
 };
