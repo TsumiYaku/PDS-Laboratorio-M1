@@ -102,8 +102,10 @@ void Socket::closeSocket() {
     }
 }
 
-void Socket::addToSet(fd_set& set) {
+void Socket::addToSet(fd_set& set, int& maxFd) {
     FD_SET(sockfd, &set);
+    if(sockfd > maxFd)
+        maxFd = sockfd;
 }
 
 void Socket::removeFromSet(fd_set& set) {

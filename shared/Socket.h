@@ -34,7 +34,7 @@ public:
     ssize_t write(int* value, size_t len, int options);
 
     // Socket set management
-    void addToSet(fd_set& set);
+    void addToSet(fd_set& set, int& maxFd);
     void removeFromSet(fd_set& set);
     bool isSet(fd_set& set);
 
