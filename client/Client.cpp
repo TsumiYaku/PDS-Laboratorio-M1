@@ -381,15 +381,27 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                 filesystem::ifstream file;
                 file.open(path_to_watch, std::ios::in | std::ios::binary);
                 int cont_size=0,i=0,j=0;
-                for(cont_size=0;cont_size<size;cont_size+=SIZE_MESSAGE_TEXT){
-                    char* buf = new char[SIZE_MESSAGE_TEXT];
-                    if(!directory->readFile(file, buf, SIZE_MESSAGE_TEXT)) {
+                int cont_char = size;
+                int num = 0;
+                while(cont_char > 0){
+                    char* buf;
+                    if(cont_char > SIZE_MESSAGE_TEXT){
+                           buf = new char[SIZE_MESSAGE_TEXT];
+                           num = SIZE_MESSAGE_TEXT;
+                    }
+                    else{
+                           buf = new char[cont_char];
+                           num = cont_char;
+                    }
+                    
+                    if(!file.read(buf, num)){
                         sendMessage(Message("FS_ERR"));
                         m = awaitMessage();
                         throw std::runtime_error("Impossible read file");
                         break;
                     };
-                    sock.write(buf, SIZE_MESSAGE_TEXT, 0); 
+                    sock.write(buf, num, 0); 
+                    cont_char -= num;
                     m = awaitMessage();
                 }
                 file.close();
