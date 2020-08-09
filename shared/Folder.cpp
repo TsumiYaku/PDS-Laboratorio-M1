@@ -98,6 +98,21 @@ bool Folder::readFile(const filesystem::path &path, char *buf, size_t size) {
     return true;
 }
 
+bool Folder::readFile(filesystem::ifstream &file, char *buf, size_t size) {
+    if(!file)
+        return false;
+    try {
+        file.read(buf, size);
+        std::cout <<"BUFFER: " << buf <<std::endl;
+    }
+    catch (filesystem::filesystem_error& e) { // File opening might cause a filesystem_error
+        std::cout << e.what();
+        return false;
+    }
+    return true;
+}
+
+
 ssize_t Folder::getFileSize(const filesystem::path &path) {
     filesystem::path filePath = this->folderPath/path;
 

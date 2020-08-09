@@ -330,7 +330,6 @@ void Client::downloadDirectory(){
                directory->writeFile(f.getPath(), data, strlen(data));
                sendMessage(Message("ACK"));
             }
-            
         }
         m = Message("ACK");
         sendMessage(std::move(m));
@@ -368,13 +367,6 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                 filesystem::path relativeContent = path(directory->removeFolderPath(path_to_watch.string()));
                 
                 int size = directory->getFileSize(relativeContent);
-                char* buf = new char[size];
-                
-                if(!directory->readFile(relativeContent, buf, size)){
-                    sendMessage(Message("FS_ERR"));
-                    Message m = awaitMessage(); 
-                    throw std::runtime_error("Error read file");
-                }
 
                 sendMessage(Message("FILE"));
                 Message m = awaitMessage();  
@@ -386,20 +378,23 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                 m = awaitMessage(); //attendo ACK
 
                 //invio SIZE_MESSAGE_TEXT byte alla volta
+                filesystem::ifstream file;
+                file.open(path_to_watch, std::ios::in | std::ios::binary);
                 int cont_size=0,i=0,j=0;
                 for(cont_size=0;cont_size<size;cont_size+=SIZE_MESSAGE_TEXT){
-                    char* b = new char[SIZE_MESSAGE_TEXT];
-                    for(j=0;j<SIZE_MESSAGE_TEXT-1;i++,j++)
-                       b[j] = buf[i];
-                    b[j] = '/0';
-                    sock.write(b, SIZE_MESSAGE_TEXT, 0); 
+                    char* buf = new char[SIZE_MESSAGE_TEXT];
+                    if(!directory->readFile(file, buf, SIZE_MESSAGE_TEXT)) {
+                        sendMessage(Message("FS_ERR"));
+                        m = awaitMessage();
+                        throw std::runtime_error("Impossible read file");
+                        break;
+                    };
+                    sock.write(buf, SIZE_MESSAGE_TEXT, 0); 
                     m = awaitMessage();
                 }
                 
                 std::cout << "FILE SEND " << relativeContent << std::endl;
                 
-                //ricevo response
-                //m = awaitMessage();  
 
                 //leggo ACK
                 if(m.getMessage().compare("ACK") == 0) break;

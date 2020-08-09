@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sstream>
 #include <optional>
+#include <ios>
 
 #include "FileWatcher.h"
 #include <packets/Message.h>
