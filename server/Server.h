@@ -25,6 +25,7 @@ class Server {
     std::vector<std::thread> pool; // thread pool for max number of concurrent connections running
     std::queue<std::pair<std::string, Message>> packetsQueue;
 
+    // Users management structures
     std::map<std::string, Socket> connectedUsers; // sockets corresponding to connected clients
     std::list<std::string> freeUsers; // users busy with their own interactions
 
@@ -43,14 +44,14 @@ private:
     void sendMessage(Socket*, Message&&);
 
     // Folder management
-    void sendChecksum(std::string user); // send the checksum associated to the user's folder
-    void synchronize(std::string user); // synchronize the user's folder
-    bool receiveFile(std::string user); // wait for file from user
-    void downloadDirectory(std::string user); // download user's directory
-    void uploadDirectory(std::string user); // send the directory to the user
+    void sendChecksum(const std::string& user); // send the checksum associated to the user's folder
+    void synchronize(const std::string& user); // synchronize the user's folder
+    bool receiveFile(const std::string& user); // wait for file from user
+    void downloadDirectory(const std::string& user); // download user's directory
+    void uploadDirectory(const std::string& user); // send the directory to the user
 
 public:
-    Server(int port=PORT); 
+    Server(int port=PORT);
     void run(); // run server indefinitely
 };
 

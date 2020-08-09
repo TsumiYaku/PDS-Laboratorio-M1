@@ -135,8 +135,8 @@ std::string Server::handleLogin(Socket* sock) {
         // Extract username from login msg
         std::string msg = m.getMessage();
         int first, second;
-        first = msg.find('_') + 1;
-        second = msg.find('_', first);
+        first = (int)msg.find('_') + 1;
+        second = (int)msg.find('_', first);
         user = msg.substr(first, second - first);
 
         // Check if user is already logged
@@ -207,14 +207,14 @@ void Server::sendMessage(Socket* socket, Message &&m) {
         std::cout << "Sending file..." << m.getFileWrapper().getPath().relative_path()<< std::endl;
 }
 
-void Server::sendChecksum(std::string user) {
+void Server::sendChecksum(const std::string& user) {
     Folder f(user, user);
     int data = (int)f.getChecksum();
     //std::cout << "SEND CHECKSUM: " << data << std::endl;
     ssize_t size = connectedUsers[user].write(&data, sizeof(data), 0);
 }
 
-void Server::synchronize(std::string user) {
+void Server::synchronize(const std::string& user) {
     sendChecksum(user);
 
     Message m = awaitMessage(user);
@@ -232,10 +232,10 @@ void Server::synchronize(std::string user) {
     }
 }
 
-bool Server::receiveFile(std::string user) {
+bool Server::receiveFile(const std::string& user) {
     Folder f(user, user);
 
-    std::stringstream ss;
+    std::stringstream sstream;
     Message m = awaitMessage(user);
     sendMessage(user, Message("OK"));
 
@@ -249,8 +249,8 @@ bool Server::receiveFile(std::string user) {
     if(m.getMessage().compare("DIRECTORY") == 0 )
     {
         connectedUsers[user].read(buf, SIZE_MESSAGE_TEXT, 0);
-        ss << buf;
-        Deserializer ia(ss);
+        sstream << buf;
+        Deserializer ia(sstream);
         Message m = Message(MessageType::file);
         m.unserialize(ia, 0);
 
@@ -279,9 +279,9 @@ bool Server::receiveFile(std::string user) {
         sendMessage(user, Message("ACK"));
         buf = new char[size_text_serialize];
         connectedUsers[user].read(buf, size_text_serialize, 0);
-        ss << buf;
-        std::cout <<"BUFFER SIZE:" << size_text_serialize << "\n" << ss.str() << std::endl;
-        Deserializer ia(ss);
+        sstream << buf;
+        std::cout << "BUFFER SIZE:" << size_text_serialize << "\n" << sstream.str() << std::endl;
+        Deserializer ia(sstream);
         Message m = Message(MessageType::file);
         m.unserialize(ia, 0);
         FileWrapper file = m.getFileWrapper();
@@ -308,8 +308,8 @@ bool Server::receiveFile(std::string user) {
     else{//FILE_DEL
         buf = new char[SIZE_MESSAGE_TEXT];
         connectedUsers[user].read(buf, SIZE_MESSAGE_TEXT, 0);
-        ss << buf;
-        Deserializer ia(ss);
+        sstream << buf;
+        Deserializer ia(sstream);
         Message m = Message(MessageType::file);
         m.unserialize(ia, 0);
         FileWrapper file = m.getFileWrapper();
@@ -322,14 +322,12 @@ bool Server::receiveFile(std::string user) {
     return true;
 }
 
-void Server::downloadDirectory(std::string user) {
+void Server::downloadDirectory(const std::string& user) {
     std::cout << "Waiting directory from user " << user << std::endl;
-    char buf[SIZE_MESSAGE_TEXT];
-    std::stringstream ss;
     while(receiveFile(user)) {}
 }
 
-void Server::uploadDirectory(std::string user) {
+void Server::uploadDirectory(const std::string& user) {
     Folder f(user, user);
     std::cout << "Sending directory to user " << user << std::endl;
 
@@ -361,10 +359,10 @@ void Server::uploadDirectory(std::string user) {
             FileWrapper file = FileWrapper(filesystem::path(f.removeFolderPath(path.string())), buf, FileStatus::created); // TODO: check if 'created' is the right status
 
             Message m2 = Message(std::move(file)); //invio file
-            std::stringstream ss;
-            Serializer ia(ss);
+            std::stringstream sstream;
+            Serializer ia(sstream);
             m2.serialize(ia, 0);
-            std::string s(ss.str());
+            std::string s(sstream.str());
             size = s.length() + 1;
             connectedUsers[user].write(&(size), sizeof(size), 0);//invio taglia testo da deserializzare
             m = awaitMessage(user); //attendo ACK
