@@ -38,7 +38,7 @@ bool Folder::writeFile(const filesystem::path &path, char *buf, size_t size) {
 
         // Write buf data into the file (might need to change to binary)
         filesystem::ofstream file;
-        file.open(filePath, ios::out | ios::trunc | ios::binary);
+        file.open(filePath, ios::out | ios::app | ios::binary);
         file.write(buf, size);
         file.close();
 

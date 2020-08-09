@@ -104,6 +104,20 @@ void Client::sendMessageWithResponse(std::string message, std::string response) 
     }
 }
 
+void Client::sendMessageWithInfoSerialize(Message &&m) {
+    // Serialization
+    std::stringstream ss;
+    Serializer ia(ss);
+    m.serialize(ia, 0);
+    std::string s(ss.str());
+
+    int size = s.length() + 1; //calcolo taglia testo serializzato
+    sock.write(&size, sizeof(size), 0);//invio taglia testo da deserializzare
+    m = awaitMessage(); //attendo ACK
+
+    sock.write(s.c_str(), strlen(s.c_str())+1, 0);//invio testo serializzato
+}
+
 void Client::close(){
     sock.closeSocket();     
 }
@@ -278,7 +292,11 @@ void Client::downloadDirectory(){
         if(m.getMessage().compare("FS_ERR") == 0) break;
 
         if(m.getMessage().compare("DIRECTORY") == 0){
-            sock.read(buf, SIZE_MESSAGE_TEXT, 0);
+            int size_text_serialize = 0;
+            sock.read(&size_text_serialize, sizeof(size_text_serialize), 0);
+            sendMessage(Message("ACK"));
+            buf = new char[size_text_serialize];
+            sock.read(buf, size_text_serialize, 0);
             ss << buf;
             // Unserialization
             Deserializer ia(ss);
@@ -299,9 +317,20 @@ void Client::downloadDirectory(){
             m = Message(MessageType::file);
             m.unserialize(ia, 0);
             FileWrapper f = m.getFileWrapper();
+            sendMessage(Message("ACK"));
+
+            //read all packets of file and write append
+            int i=0;
+            int num_packets = f.getSize()/SIZE_MESSAGE_TEXT;
+            if(f.getSize()%SIZE_MESSAGE_TEXT != 0) num_packets++;
+
+            for(i=0;i<num_packets;i++){
+               char* data = new char[SIZE_MESSAGE_TEXT];
+               sock.read(data, SIZE_MESSAGE_TEXT, 0);
+               directory->writeFile(f.getPath(), data, strlen(data));
+               sendMessage(Message("ACK"));
+            }
             
-            char * data = strdup(f.getData());
-            directory->writeFile(f.getPath(), data, strlen(data));
         }
         m = Message("ACK");
         sendMessage(std::move(m));
@@ -320,19 +349,20 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                 Message m = awaitMessage(); //attendo un response da server
                 //invio directory da sincronizzare
 
-                FileWrapper f = FileWrapper(directory->removeFolderPath(path_to_watch.string()), strdup(""), status);
+                FileWrapper f = FileWrapper(directory->removeFolderPath(path_to_watch.string()), status, 0);//path, status, size file
                
                 Message m2 = Message(std::move(f));
                 //m2.print();
-                sendMessage(std::move(m2));
+                sendMessageWithInfoSerialize(std::move(m2));
 
                 std::cout << "DIRECTORY SEND " << directory->removeFolderPath(path_to_watch.string()) << std::endl;
                 
                 //ricevo response
-                m = awaitMessage();
+                m = awaitMessage();//attendo ACK
 
                 //leggo messaggio da server
                 if(m.getMessage().compare("ACK") == 0) break;
+
             }else if(is_regular_file(path_to_watch)){
                 //invio file da sincronizzare
                 filesystem::path relativeContent = path(directory->removeFolderPath(path_to_watch.string()));
@@ -347,41 +377,47 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                 }
 
                 sendMessage(Message("FILE"));
-                Message m = awaitMessage(); 
+                Message m = awaitMessage();  
 
-                FileWrapper f = FileWrapper(relativeContent, buf, status);
-                
+                //invio fileInfo
+                FileWrapper f = FileWrapper(relativeContent, status, size);
                 Message m2 = Message(std::move(f));
-                Serializer ia(ss);
-                m2.serialize(ia, 0);
-                std::string s(ss.str());
-                size = s.length() + 1;
-                sock.write(&size, sizeof(size), 0);//invio taglia testo da deserializzare
+                sendMessageWithInfoSerialize(std::move(m2));
                 m = awaitMessage(); //attendo ACK
-                sock.write(s.c_str(), strlen(s.c_str())+1, 0);//invio testo serializzato
-                //sendMessage(std::move(m2));
+
+                //invio SIZE_MESSAGE_TEXT byte alla volta
+                int cont_size=0,i=0,j=0;
+                for(cont_size=0;cont_size<size;cont_size+=SIZE_MESSAGE_TEXT){
+                    char* b = new char[SIZE_MESSAGE_TEXT];
+                    for(j=0;j<SIZE_MESSAGE_TEXT-1;i++,j++)
+                       b[j] = buf[i];
+                    b[j] = '/0';
+                    sock.write(b, SIZE_MESSAGE_TEXT, 0); 
+                    m = awaitMessage();
+                }
                 
                 std::cout << "FILE SEND " << relativeContent << std::endl;
                 
                 //ricevo response
-                m = awaitMessage();  
+                //m = awaitMessage();  
 
                 //leggo ACK
                 if(m.getMessage().compare("ACK") == 0) break;
+
             }else if(!exists(path_to_watch)){ //file cancellato
                 Message m = Message("FILE_DEL");
                 sendMessage(std::move(m));
                 filesystem::path relativeContent = path(directory->removeFolderPath(path_to_watch.string()));
 
-                FileWrapper f = FileWrapper(relativeContent , strdup(""), status);
+                FileWrapper f = FileWrapper(relativeContent, status, 0);//path, status, size file (0 perche lo devo eliminare)
                
                 Message m2 = Message(std::move(f));
-                //m2.print();
-                sendMessage(std::move(m2));
+               
+                sendMessageWithInfoSerialize(std::move(m2));
+
+                m = awaitMessage(); //attendo ACK
 
                 std::cout << "FILE DELETED " << relativeContent  << std::endl;
-
-                 m = awaitMessage();  
 
                 //leggo ACK
                 if(m.getMessage().compare("ACK") == 0) break;

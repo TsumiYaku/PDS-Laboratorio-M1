@@ -7,30 +7,30 @@ using namespace serialization;
 
 FileWrapper::FileWrapper()
 {
-    data = nullptr;
+    //data = nullptr;
 }
 
-FileWrapper::FileWrapper(filesystem::path filePath, char *data, FileStatus status):
-    filePath(filePath), data(data), status(status)
+FileWrapper::FileWrapper(filesystem::path filePath, /*char *data,*/ FileStatus status, int len):
+    filePath(filePath),/* data(data),*/ status(status), len(len)
 {
-    len = strlen(data);
+    //len = strlen(data);
 }
 
 FileWrapper::FileWrapper(FileWrapper &&other) {
     filePath = other.filePath;
-    data = other.data;
-    other.data = nullptr;
+    //data = other.data;
+    //other.data = nullptr;
     len = other.len;
     status = other.status;
 }
 
 FileWrapper &FileWrapper::operator=(FileWrapper &&other) noexcept {
     if (this != &other) {
-        delete [] data;
+        //delete [] data;
 
         filePath == other.filePath;
-        data = other.data;
-        other.data = nullptr;
+        //data = other.data;
+        //other.data = nullptr;
         len = other.len;
         status = other.status;
     }
@@ -42,14 +42,17 @@ filesystem::path FileWrapper::getPath(){
     return filePath;
 }
 
+void FileWrapper::setSize(int size){
+    len = size;
+}
 
-char* FileWrapper::getData(){
-    return data;
+int FileWrapper::getSize(){
+    return len;
 }
 
 void FileWrapper::print(){
     std::cout <<"PATH: "<< filePath.relative_path().string() << std::endl;
-    std::cout <<"DATA:" << data << std::endl;
+    //std::cout <<"DATA:" << data << std::endl;
     std::cout <<"SIZE:" << len << std::endl;
 }
 

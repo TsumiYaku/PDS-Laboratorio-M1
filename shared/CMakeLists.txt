@@ -7,7 +7,6 @@ add_library(shared
         packets/Message.h
         packets/FileWrapper.cpp
         packets/FileWrapper.h
-        packets/main.cpp
         packets/FileStatus.h
         Folder.cpp
         Folder.h)
