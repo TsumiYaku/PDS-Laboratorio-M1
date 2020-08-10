@@ -327,6 +327,7 @@ bool Server::receiveFile(const std::string& user) {
 void Server::downloadDirectory(const std::string& user) {
     std::cout << "Waiting directory from user " << user << std::endl;
     while(receiveFile(user)) {}
+    sendMessage(user, Message("ACK"));
 }
 
 void Server::uploadDirectory(const std::string& user) {

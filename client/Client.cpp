@@ -206,7 +206,7 @@ void Client::monitoraCartella(std::string folder){
                         std::cout << "SENDING: " << path << std::endl;
                         inviaFile(path, FileStatus::modified, false);
                     }
-                    sendMessageWithResponse("END", "OK");     
+                    sendMessageWithResponse("END", "ACK");
                 }
                 break; //ho eseguito tutto correttamente
             }catch(std::runtime_error& e){
@@ -242,7 +242,6 @@ void Client::monitoraCartella(std::string folder){
                     //invio file
                     std::thread create([this, path_to_watch]()->void{
                         inviaFile(path(path_to_watch), FileStatus::created, false); 
-                        sendMessageWithResponse("END", "OK");
                     });
                     create.detach();
                     break;
@@ -255,7 +254,6 @@ void Client::monitoraCartella(std::string folder){
                     //invio il file
                     std::thread modify([this, path_to_watch]()->void{
                         inviaFile(path(path_to_watch), FileStatus::modified, false); 
-                        sendMessageWithResponse("END", "OK");
                     });
                     modify.detach();
                     break;
@@ -268,7 +266,6 @@ void Client::monitoraCartella(std::string folder){
                     //invio file
                     std::thread erase([this, path_to_watch]()->void{
                         inviaFile(path(path_to_watch), FileStatus::erased, false); 
-                        sendMessageWithResponse("END", "OK");
                     });
                     erase.detach();
                 }
