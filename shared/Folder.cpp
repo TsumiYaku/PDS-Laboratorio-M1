@@ -132,13 +132,13 @@ uint32_t Folder::getChecksum() {
                 int cont_char = size;
                 int num = 0;
                 while(cont_char > 0){
-                    char* buf;
+                    std::unique_ptr<char[]> buf;
                     if(cont_char > SIZE_MESSAGE_TEXT){
-                           buf = new char[SIZE_MESSAGE_TEXT+1];
+                           buf = std::make_unique<char[]>(SIZE_MESSAGE_TEXT);
                            num = SIZE_MESSAGE_TEXT;
                     }
                     else{
-                           buf = new char[cont_char+1];
+                           buf = std::make_unique<char[]>(cont_char);
                            num = cont_char;
                     }
                     
