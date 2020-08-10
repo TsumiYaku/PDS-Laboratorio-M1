@@ -38,8 +38,8 @@ private:
     std::pair<std::string, Message> dequeuePacket(); // called by threads in the pool to consume packets
 
     // Communication
-    Message awaitMessage(const std::string& user); // wait to read a Message packet
-    Message awaitMessage(Socket*);
+    Message awaitMessage(const std::string& user, int msg_size = SIZE_MESSAGE_TEXT); // wait to read a Message packet
+    Message awaitMessage(Socket*, int msg_size = SIZE_MESSAGE_TEXT);
     void sendMessage(const std::string&, Message&&); // send a Message Packet
     void sendMessage(Socket*, Message&&);
 

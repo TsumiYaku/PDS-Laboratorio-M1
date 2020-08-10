@@ -16,7 +16,13 @@ Server::Server(int port): ss(port) {
             while (true) {
                 std::pair<std::string, Message> packet = this->dequeuePacket();
                 user = packet.first;
-                parsePacket(std::move(packet));
+                try {
+                    parsePacket(std::move(packet));
+                }
+                catch (std::runtime_error& e) {
+                    std::cout << e.what() << std::endl;
+                    connectedUsers.erase(user); // Break connection with user if there are problems
+                }
                 freeUsers.push_back(user);
             }
         });
@@ -77,7 +83,14 @@ void Server::run() {
             std::cout << "Client " << name << ":" << ntohs(addr.sin_port) << " connected" << std::endl;
 
             // Authenticate user
-            std::string user = handleLogin(&s);
+            std::string user;
+            try {
+                user = handleLogin(&s);
+            }
+            catch (std::runtime_error& e) {
+                std::cout << "Error during user login" << std::endl;
+                std::cout << "runtime_error: " << e.what() << std::endl;
+            }
             if(user != "") {
                 connectedUsers.insert(std::pair<std::string, Socket>(user, std::move(s)));
                 freeUsers.push_back(user);
@@ -156,32 +169,35 @@ std::string Server::handleLogin(Socket* sock) {
     return user;
 }
 
-Message Server::awaitMessage(const std::string& user) {
+Message Server::awaitMessage(const std::string& user, int msg_size) {
     Socket *socket = &connectedUsers[user];
     std::cout << "Received message from user: " << user << std::endl;
     return awaitMessage(socket);
 }
 
-Message Server::awaitMessage(Socket* socket) {
-    size_t msg_size = SIZE_MESSAGE_TEXT;
-
+Message Server::awaitMessage(Socket* socket, int msg_size) {
     // Socket read
-    char buf[msg_size];
-    int size = socket->read(buf, msg_size, 0);
+    std::unique_ptr<char[]> buf = std::make_unique<char[]>(msg_size);
+    int size = socket->read(buf.get(), msg_size, 0);
     if (size == 0) throw std::runtime_error("Closed socket");
 
-    //std::cout << buf << " " << size << std::endl;
     // Unserialization
-    std::stringstream sstream;
-    sstream << buf;
-    Deserializer ia(sstream);
     Message m(MessageType::text);
-    m.unserialize(ia, 0);
+    try {
+        std::stringstream sstream;
+        sstream << buf.get();
+        std::cout << sstream.str() << std::endl;
+        Deserializer ia(sstream);
+        m.unserialize(ia, 0);
+    }
+    catch (boost::archive::archive_exception& e) {
+        throw std::runtime_error(e.what());
+    }
 
     if(m.getType() == MessageType::text)
         std::cout << "Message received: " << m.getMessage() << std::endl;
     else
-        std::cout << "Incoming file..." << m.getFileWrapper().getPath().relative_path()<< std::endl;
+        std::cout << "Message received" << std::endl;
     return m;
 }
 
@@ -194,8 +210,13 @@ void Server::sendMessage(const std::string& user, Message &&m) {
 void Server::sendMessage(Socket* socket, Message &&m) {
     // Serialization
     std::stringstream sstream;
-    Serializer oa(sstream);
-    m.serialize(oa, 0);
+    try {
+        Serializer oa(sstream);
+        m.serialize(oa, 0);
+    }
+    catch (boost::archive::archive_exception& e) {
+        throw std::runtime_error(e.what());
+    }
 
     // Socket write
     std::string s(sstream.str());
@@ -234,90 +255,71 @@ void Server::synchronize(const std::string& user) {
 
 bool Server::receiveFile(const std::string& user) {
     Folder f(user, user);
+    Socket* socket = &connectedUsers[user];
 
-    std::stringstream sstream;
+    // Receive command and answer ACK
     Message m = awaitMessage(user);
-    sendMessage(user, Message("OK"));
+    sendMessage(user, Message("ACK"));
 
+    // In case we're done receiving a series
     if(m.getMessage().compare("END") == 0) return false;
-    if(m.getMessage().compare("FS_ERR") == 0) return false;
-    if(m.getMessage().compare("ERR") == 0) return false;
 
-    char* buf  = new char[SIZE_MESSAGE_TEXT];
-    //recieve message FILE and after recieve filewrapper
+    // Errors handling
+    if(m.getMessage().compare("FS_ERR") == 0) throw std::runtime_error("receiveFile: File system error on client side");
+    if(m.getMessage().compare("ERR") == 0) throw std::runtime_error("receiveFile: Generic error on client side");
 
+    // Receive file info
+    int val;
+    int size = socket->read(&val, sizeof(int), 0);
+    if(size <= 0) throw std::runtime_error("receiveFile: error during receiving of file info");
+    sendMessage(user, Message("ACK"));
+    FileWrapper fileInfo = awaitMessage(user, val).getFileWrapper();
+    sendMessage(user, Message("ACK"));
+
+    // Check if the received message was a Directory or a File
     if(m.getMessage().compare("DIRECTORY") == 0 )
-    {
-        connectedUsers[user].read(buf, SIZE_MESSAGE_TEXT, 0);
-        sstream << buf;
-        Deserializer ia(sstream);
-        Message m = Message(MessageType::file);
-        m.unserialize(ia, 0);
-
-        FileWrapper file = m.getFileWrapper();
-        std::cout << "Receiving directory: " << file.getPath() <<std::endl;
-        switch (file.getStatus()) {
-            case FileStatus::created: {
-                f.writeDirectory(file.getPath());
+        switch (fileInfo.getStatus()) {
+        case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
+            f.deleteFile(fileInfo.getPath());
+        case FileStatus::created :
+            f.writeDirectory(fileInfo.getPath());
+            break;
+        case FileStatus::erased :
+            f.deleteFile(fileInfo.getPath());
+            break;
+        default:
+            break;
+        }
+    else if(m.getMessage().compare("FILE") == 0 ) {
+        switch (fileInfo.getStatus()) {
+            case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
+                f.deleteFile(fileInfo.getPath());
+            case FileStatus::created : {
+                // Read chunks of data
+                int count_char = fileInfo.getSize();
+                int num = 0;
+                while (count_char > 0) {
+                    num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
+                    std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
+                    int receivedSize = socket->read(buf.get(), num, 0);
+                    f.writeFile(fileInfo.getPath(), buf.get(), receivedSize);
+                    count_char -= receivedSize;
+                }
                 break;
             }
-            case FileStatus::modified: {
-                f.writeDirectory(file.getPath());
+            case FileStatus::erased :
+                f.deleteFile(fileInfo.getPath());
                 break;
-            }
-            case FileStatus::erased: {
-                f.deleteFile(file.getPath());
-                break;
-            }
             default:
                 break;
         }
     }
-    else if(m.getMessage().compare("FILE") == 0 ){
-        int size_text_serialize = 0;
-        connectedUsers[user].read(&(size_text_serialize), sizeof(size_text_serialize), 0);
-        sendMessage(user, Message("ACK"));
-        buf = new char[size_text_serialize];
-        connectedUsers[user].read(buf, size_text_serialize, 0);
-        sstream << buf;
-        std::cout << "BUFFER SIZE:" << size_text_serialize << "\n" << sstream.str() << std::endl;
-        Deserializer ia(sstream);
-        Message m = Message(MessageType::file);
-        m.unserialize(ia, 0);
-        FileWrapper file = m.getFileWrapper();
-        std::cout << " FILE " << file.getPath() <<std::endl;
-        switch (file.getStatus()) {
-            case FileStatus::created: {
-                char * data = strdup(file.getData());
-                f.writeFile(file.getPath(), data, strlen(data));
-                break;
-            }
-            case FileStatus::modified: {
-                char *data = strdup(file.getData());
-                f.writeFile(file.getPath(), data, strlen(data));
-                break;
-            }
-            case FileStatus::erased: {
-                f.deleteFile(file.getPath());
-                break;
-            }
-            default:
-                break;
-        }
-    }
-    else{//FILE_DEL
-        buf = new char[SIZE_MESSAGE_TEXT];
-        connectedUsers[user].read(buf, SIZE_MESSAGE_TEXT, 0);
-        sstream << buf;
-        Deserializer ia(sstream);
-        Message m = Message(MessageType::file);
-        m.unserialize(ia, 0);
-        FileWrapper file = m.getFileWrapper();
-        std::cout << " FILE DELETED " << file.getPath() <<std::endl;
-        if(file.getPath().string().compare("") != 0)
-            f.deleteFile(file.getPath());
+    else if (m.getMessage().compare("FILE_DEL") == 0) {
+        if(!fileInfo.getPath().empty())
+            f.deleteFile(fileInfo.getPath());
     }
 
+    // Send ACK to indicate operation success
     sendMessage(user, Message("ACK"));
     return true;
 }
@@ -328,51 +330,5 @@ void Server::downloadDirectory(const std::string& user) {
 }
 
 void Server::uploadDirectory(const std::string& user) {
-    Folder f(user, user);
-    std::cout << "Sending directory to user " << user << std::endl;
 
-    for (const filesystem::path& path : f.getContent()) {
-
-        if(filesystem::is_directory(path)) {
-            sendMessage(user, Message("DIRECTORY"));
-            Message m = awaitMessage(user);
-            //std::cout << f->strip_root(path).string() << std::endl;
-            FileWrapper file = FileWrapper(f.strip_root(path), strdup(""), FileStatus::created); // TODO: check if 'created' is the right status
-            Message m2 = Message(std::move(file));
-            std::cout << "DIRECTORY SEND " << m2.getFileWrapper().getPath() << std::endl;
-            sendMessage(user, std::move(m2));
-        }else{
-            int size = (int)f.getFileSize(f.removeFolderPath(path.string()));
-            //std::cout << size <<std::endl;
-            char* buf = new char[size+1];
-
-            if(!f.readFile(f.removeFolderPath(path.string()), buf, size)) {
-                sendMessage(user, Message("FS_ERR"));
-                break;
-            }
-            std::cout <<"CONTENT FILE " << buf << std::endl;
-
-            sendMessage(user, Message("FILE"));
-            Message m = awaitMessage(user); //attendo un response da client
-
-
-            FileWrapper file = FileWrapper(filesystem::path(f.removeFolderPath(path.string())), buf, FileStatus::created); // TODO: check if 'created' is the right status
-
-            Message m2 = Message(std::move(file)); //invio file
-            std::stringstream sstream;
-            Serializer ia(sstream);
-            m2.serialize(ia, 0);
-            std::string s(sstream.str());
-            size = s.length() + 1;
-            connectedUsers[user].write(&(size), sizeof(size), 0);//invio taglia testo da deserializzare
-            m = awaitMessage(user); //attendo ACK
-            connectedUsers[user].write(s.c_str(), strlen(s.c_str())+1, 0);//invio testo serializzato
-            //m2.print();
-            //sendMessage(std::move(m2));
-
-            m = awaitMessage(user);   //attendo response (TODO BETTER)
-
-        }
-    }
-    sendMessage(user, Message("END"));
 }
