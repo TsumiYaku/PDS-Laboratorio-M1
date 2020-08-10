@@ -68,7 +68,13 @@ void Server::run() {
 
                 // Else, it's a good communication that has to be handled
                 freeUsers.remove(user); // User is now busy
-                enqueuePacket(std::pair<std::string, Message>(user, std::move(m))); // Feed packet to the pool
+
+                /* MULTI THREAD EXECUTION, comment it if you need a single thread for debugging */
+                //enqueuePacket(std::pair<std::string, Message>(user, std::move(m))); // Feed packet to the pool
+
+                /* SINGLE THREAD EXECUTION, uncomment the following 2 lines if you need for debugging */
+                parsePacket(std::pair<std::string, Message>(user, std::move(m)));
+                freeUsers.push_back(user);
             }
         }
 
@@ -295,10 +301,12 @@ bool Server::receiveFile(const std::string& user) {
             case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
                 f.deleteFile(fileInfo.getPath());
             case FileStatus::created : {
+                std::cout << "Reading blocks from socket" << std::endl;
                 // Read chunks of data
                 int count_char = fileInfo.getSize();
                 int num = 0;
                 while (count_char > 0) {
+                    std::cout << "Remaining data: " << count_char << std::endl;
                     num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
                     std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
                     int receivedSize = socket->read(buf.get(), num, 0);
@@ -325,6 +333,8 @@ bool Server::receiveFile(const std::string& user) {
 }
 
 void Server::downloadDirectory(const std::string& user) {
+    Folder f(user, user);
+    f.wipeFolder();
     std::cout << "Waiting directory from user " << user << std::endl;
     while(receiveFile(user)) {}
     sendMessage(user, Message("ACK"));

@@ -128,6 +128,7 @@ void Client::sendMessageWithInfoSerialize(Message &&m) {
     m = awaitMessage(); //attendo ACK
 
     sock.write(s.c_str(), strlen(s.c_str())+1, 0);//invio testo serializzato
+
 }
 
 void Client::close(){
@@ -380,10 +381,11 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                 //m2.print();
                 sendMessageWithInfoSerialize(std::move(m2));
 
+                m = awaitMessage(); //attendo ACK per il fileWrapper
+
                 std::cout << "DIRECTORY SEND " << directory->removeFolderPath(path_to_watch.string()) << std::endl;
                 
-                //ricevo response
-                m = awaitMessage();//attendo ACK
+                m = awaitMessage(); //attendo ACK per la fine della creazione della cartella
 
                 //leggo messaggio da server
                 if(m.getMessage().compare("ACK") == 0) break;
@@ -431,9 +433,7 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                     m = awaitMessage();
                 }
                 file.close();
-                
                 std::cout << "FILE SEND " << relativeContent << std::endl;
-                
 
                 //leggo ACK
                 if(m.getMessage().compare("ACK") == 0) break;
