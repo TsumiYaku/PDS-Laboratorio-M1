@@ -142,11 +142,11 @@ uint32_t Folder::getChecksum() {
                            num = cont_char;
                     }
                     
-                    if(!file.read(buf, num)){
+                    if(!file.read(buf.get(), num)){
                         throw std::runtime_error("Impossible read file");
                         break;
                     }
-                    std::string ss(buf);
+                    std::string ss(buf.get());
                     checksum.add(ss); 
                     cont_char -= num;  
                 }

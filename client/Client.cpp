@@ -42,7 +42,7 @@ Client::Client(std::string address, int port): address(address), port(port){
 
 }
 
-Client::Client(Client &&other) {
+/*Client::Client(Client &&other) {
 
     this->sock = std::move(sock);
     this->cont_error = other.cont_error;
@@ -72,7 +72,7 @@ Client &Client::operator=(Client &&other) {
         std::cout <<"CLIENT MOVE OPERETOR="<<std::endl;
     }
     return *this;
-}
+}*/
 
 void Client::sendMessage(Message &&m) {
     // Serialization
@@ -416,7 +416,7 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                            num = cont_char;
                     }
                     
-                    if(!file.read(buf, num)){
+                    if(!file.read(buf.get(), num)){
                         sendMessage(Message("FS_ERR"));
                         m = awaitMessage();
                         throw std::runtime_error("Impossible read file");
