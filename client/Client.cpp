@@ -83,14 +83,19 @@ void Client::sendMessage(Message &&m) {
     // Socket write
     std::string s(sstream.str());
     log("Message send:" + m.getMessage());
-    sock.write(s.c_str(), strlen(s.c_str())+1, 0);
+    int length = strlen(s.c_str())+1;
+    std::cout << s.c_str() << std::endl;
+    //sock.write(&length,sizeof(length) , 0);
+    sock.write(s.c_str(),length, 0);
 }
 
 Message Client::awaitMessage(size_t msg_size = SIZE_MESSAGE_TEXT) {
     // Socket read
+    //int size;
+    //sock.read(&size, sizeof(size), 0);
     char buf[msg_size];
-    int size = sock.read(buf, msg_size, 0);
-    //std::cout << buf << " " << size << std::endl;
+    sock.read(buf, msg_size, 0);
+    std::cout << buf << " " << msg_size << std::endl;
     // Unserialization
     std::stringstream sstream;
     sstream << buf;
@@ -185,9 +190,11 @@ void Client::monitoraCartella(std::string folder){
                 sendMessage(std::move(m));
                 int checksumServer = 0;
                 int checksumClient = (int)directory->getChecksum();
+                //attendo checksum
                 sock.read(&checksumServer, sizeof(checksumServer), 0); //ricevo checksum da server
                 std::cout << "CHECKSUM CLIENT " << checksumClient <<std::endl;
                 std::cout << "CHECKSUM SERVER " << checksumServer <<std::endl;
+                //sendMessage(Message("ACK"));
                 if(checksumClient == checksumServer){
                     Message m = Message("OK");
                     sendMessage(std::move(m));

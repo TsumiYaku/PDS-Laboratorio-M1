@@ -37,34 +37,34 @@ public:
     template<class Archive>
     void serialize(Archive& ar, const unsigned int version){
         if(type == MessageType::file){
-            ar & 1; //type == file
+            ar << 1; //type == file
 
-            std::stringstream s;
+            std::stringstream s("");
             Serializer oa(s);
             file.serialize(oa, 0);
             std::string tmp = s.str();
             //this->message = tmp;
-            ar & BOOST_SERIALIZATION_NVP(tmp);
+            ar << BOOST_SERIALIZATION_NVP(tmp);
         }
         else{
-            ar & 0; //type == text
-            ar & BOOST_SERIALIZATION_NVP(message);
+            ar << 0; //type == text
+            ar << BOOST_SERIALIZATION_NVP(message);
         }
     }
 
     template<class Archive>
     void unserialize(Archive& ar, const unsigned int version){
             int t;
-            ar & t;
+            ar >> t;
             switch(t){
                 case 0:{
-                    ar & BOOST_SERIALIZATION_NVP(message);
+                    ar >> BOOST_SERIALIZATION_NVP(message);
                     type = MessageType::text; break;
                 } 
                 case 1: {
                     std::string fileSerialize;
                     std::stringstream s;
-                    ar & BOOST_SERIALIZATION_NVP(fileSerialize);
+                    ar >> BOOST_SERIALIZATION_NVP(fileSerialize);
                     s << fileSerialize;
                     Deserializer ia(s);
                     file.unserialize(ia, 0);
