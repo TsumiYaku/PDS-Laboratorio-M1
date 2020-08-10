@@ -124,35 +124,25 @@ uint32_t Folder::getChecksum() {
         filesystem::path path_complete = this->getPath()/path;
         if(is_directory(path_complete))
             checksum.add(path.string());
-        else{
+        else {
 	        filesystem::ifstream file;
-                file.open(path_complete, std::ios::in | std::ios::binary);
-                int cont_size=0,i=0,j=0;
-		int size = getFileSize(path_complete);
-                int cont_char = size;
-                int num = 0;
-                while(cont_char > 0){
-                    std::unique_ptr<char[]> buf;
-                    if(cont_char > SIZE_MESSAGE_TEXT){
-                           buf = std::make_unique<char[]>(SIZE_MESSAGE_TEXT);
-                           num = SIZE_MESSAGE_TEXT;
-                    }
-                    else{
-                           buf = std::make_unique<char[]>(cont_char);
-                           num = cont_char;
-                    }
-                    
-                    if(!file.read(buf.get(), num)){
-                        throw std::runtime_error("Impossible read file");
-                        break;
-                    }
-                    std::string ss(buf.get());
-                    checksum.add(ss); 
-                    cont_char -= num;  
-                }
-                //calcolo checksum in base al percorso relativo del file + suo contenuto
-                checksum.add(path.string());
-                file.close();
+            file.open(path_complete, std::ios::in | std::ios::binary);
+            int size = getFileSize(path);
+            int cont_char = size;
+            int num;
+            while(cont_char > 0){
+                num = cont_char>SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : cont_char;
+                std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
+
+                if(!file.read(buf.get(), num)) throw std::runtime_error("Impossible read file");
+
+                std::string ss(buf.get());
+                checksum.add(ss);
+                cont_char -= num;
+            }
+            //calcolo checksum in base al percorso relativo del file + suo contenuto
+            checksum.add(path.string());
+            file.close();
         }
     }
 
