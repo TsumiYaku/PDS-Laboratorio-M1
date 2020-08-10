@@ -1,4 +1,5 @@
 #include "Folder.h"
+#include "packets/Message.h"
 #include <ios>
 #include <iostream>
 
@@ -98,20 +99,6 @@ bool Folder::readFile(const filesystem::path &path, char *buf, size_t size) {
     return true;
 }
 
-bool Folder::readFile(filesystem::ifstream &file, char *buf, size_t size) {
-    if(!file)
-        return false;
-    try {
-        file.read(buf, size);
-        std::cout <<"BUFFER: " << buf <<std::endl;
-    }
-    catch (filesystem::filesystem_error& e) { // File opening might cause a filesystem_error
-        std::cout << e.what();
-        return false;
-    }
-    return true;
-}
-
 
 ssize_t Folder::getFileSize(const filesystem::path &path) {
     filesystem::path filePath = this->folderPath/path;
@@ -138,12 +125,34 @@ uint32_t Folder::getChecksum() {
         if(is_directory(path_complete))
             checksum.add(path.string());
         else{
-            size_t size = getFileSize(path);
-            if(size == -1) throw std::runtime_error("Error size file");
-            char* buf = new char[size];
-            if(!readFile(path, buf, size)) throw std::runtime_error("Error size file");
-            std::string ss(buf);
-            checksum.add(path.string() +  " " + ss); //calcolo checksum in base al percorso relativo del file + suo contenuto
+	        filesystem::ifstream file;
+                file.open(path_complete, std::ios::in | std::ios::binary);
+                int cont_size=0,i=0,j=0;
+		int size = getFileSize(path_complete);
+                int cont_char = size;
+                int num = 0;
+                while(cont_char > 0){
+                    char* buf;
+                    if(cont_char > SIZE_MESSAGE_TEXT){
+                           buf = new char[SIZE_MESSAGE_TEXT+1];
+                           num = SIZE_MESSAGE_TEXT;
+                    }
+                    else{
+                           buf = new char[cont_char+1];
+                           num = cont_char;
+                    }
+                    
+                    if(!file.read(buf, num)){
+                        throw std::runtime_error("Impossible read file");
+                        break;
+                    }
+                    std::string ss(buf);
+                    checksum.add(ss); 
+                    cont_char -= num;  
+                }
+                //calcolo checksum in base al percorso relativo del file + suo contenuto
+                checksum.add(path.string());
+                file.close();
         }
     }
 
