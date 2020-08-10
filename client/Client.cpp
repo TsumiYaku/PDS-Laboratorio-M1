@@ -23,16 +23,20 @@ Client::Client(std::string address, int port): address(address), port(port){
             std::cout << "TRY TO CONNENCT..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
-            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
+                delete directory;
                 exit(-3);
+            }
         }
         catch(boost::filesystem::filesystem_error& e){
             std::cout << e.what() << std::endl;
             std::cout << "TRY TO REPAIR..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
-            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
+                delete directory;
                 exit(-3);
+            }
         }
     }
 
@@ -48,12 +52,13 @@ Client::Client(Client &&other) {
     this->port = other.port;
     other.directory = nullptr;
     other.sock.closeSocket();
-    
+    delete other.directory;
+  
     std::cout <<"CLIENT MOVE"<<std::endl;
 }
 
 Client &Client::operator=(Client &&other) {
-    if(this->user != other.user){
+    if(this != other){
         this->sock = std::move(sock);
         this->cont_error = other.cont_error;
         this->sad = other.sad;
@@ -62,6 +67,8 @@ Client &Client::operator=(Client &&other) {
         this->port = other.port;
         other.directory = nullptr;
         other.sock.closeSocket();
+        delete other.directory;
+        
         std::cout <<"CLIENT MOVE OPERETOR="<<std::endl;
     }
     return *this;
@@ -124,6 +131,7 @@ void Client::close(){
 
 Client::~Client(){
     std::cout <<"Client diconnetted..." << std::endl;
+    delete directory;
     close();
 }
 
@@ -148,16 +156,20 @@ bool Client::doLogin(std::string user){
             std::cout << "TRY TO CONNENCT..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
-            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
+                delete directory;
                 return false;
+            }
         }
         catch(boost::filesystem::filesystem_error& e){
             std::cout << e.what() << std::endl;
             std::cout << "TRY TO REPAIR..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
-            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
+                delete directory;
                 return false;
+            }
         }
     }
 }
@@ -202,16 +214,20 @@ void Client::monitoraCartella(std::string folder){
                     std::cout << "TRY TO CONNENCT..." << std::endl;
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                     cont_error++;
-                    if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+                    if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
+                        delete directory;
                         exit(-1);
+                    }
             }
             catch(boost::filesystem::filesystem_error& e){
                     std::cout << e.what() << std::endl;
                     std::cout << "TRY TO RESOLVE..." << std::endl;
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                     cont_error++;
-                    if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+                    if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
+                        delete directory;
                         exit(-1);
+                    }
             }
     };
     //mi metto in ascolto e attendo una modifica
@@ -266,16 +282,20 @@ void Client::monitoraCartella(std::string folder){
             std::cout << "TRY TO CONNENCT..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
-            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
+                delete directory;
                 exit(-2);
+            }
         }
         catch(boost::filesystem::filesystem_error& e){
             std::cout << e.what() << std::endl;
             std::cout << "TRY TO RESOLVE..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
-            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR)
+            if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
+                delete directory;
                 exit(-2);
+            }
         }
     }); 
 }
@@ -329,11 +349,13 @@ void Client::downloadDirectory(){
                sock.read(data, SIZE_MESSAGE_TEXT, 0);
                directory->writeFile(f.getPath(), data, strlen(data));
                sendMessage(Message("ACK"));
+               delete data;
             }
         }
         m = Message("ACK");
         sendMessage(std::move(m));
     };
+    delete buf;
 }
 
 void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool conThread){
