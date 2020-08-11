@@ -74,7 +74,7 @@ void Server::run() {
                     std::cout << e.what() << std::endl;
                     connectedUsers.erase(user);
                     freeUsers.remove(user);
-                    continue;
+                    break;
                 }
 
                 // Else, it's a good communication that has to be handled
