@@ -84,7 +84,7 @@ void Client::sendMessage(Message &&m) {
     std::string s(sstream.str());
     log("Message send:" + m.getMessage());
     int length = strlen(s.c_str())+1;
-    std::cout << s.c_str() << std::endl;
+    std::cout <<"TEXT SERIALIZE: "<< s.c_str() << std::endl;
     //sock.write(&length,sizeof(length) , 0);
     sock.write(s.c_str(),length, 0);
 }
@@ -95,10 +95,10 @@ Message Client::awaitMessage(size_t msg_size = SIZE_MESSAGE_TEXT) {
     //sock.read(&size, sizeof(size), 0);
     char buf[msg_size];
     sock.read(buf, msg_size, 0);
-    std::cout << buf << " " << msg_size << std::endl;
     // Unserialization
     std::stringstream sstream;
     sstream << buf;
+    std::cout << "DESERIALIZE: "<< sstream.str() << std::endl;
     Deserializer ia(sstream);
     Message m(MessageType::text);
     m.unserialize(ia, 0);
@@ -125,10 +125,11 @@ void Client::sendMessageWithInfoSerialize(Message &&m) {
 
     int size = s.length() + 1; //calcolo taglia testo serializzato
     sock.write(&size, sizeof(size), 0);//invio taglia testo da deserializzare
+    std::cout <<"SERIALIZE SIZE: "<< size << std::endl;
     m = awaitMessage(); //attendo ACK
 
     sock.write(s.c_str(), strlen(s.c_str())+1, 0);//invio testo serializzato
-
+    std::cout <<"SERIALIZE CONTENT: "<< s.c_str()<<std::endl;
 }
 
 void Client::close(){
@@ -196,11 +197,11 @@ void Client::monitoraCartella(std::string folder){
                 std::cout << "CHECKSUM CLIENT " << checksumClient <<std::endl;
                 std::cout << "CHECKSUM SERVER " << checksumServer <<std::endl;
                 //sendMessage(Message("ACK"));
-                if(checksumClient == checksumServer){
+                if(checksumClient == checksumServer){ //OK
                     Message m = Message("OK");
                     sendMessage(std::move(m));
                 }
-                else if(checksumServer != 0 && checksumClient==0){ 
+                else if(checksumServer != 0 && checksumClient==0){ //TODO
                     sendMessageWithResponse("DOWNLOAD", "ACK");
                     downloadDirectory(); //scarico contenuto del server
                 }
@@ -211,7 +212,7 @@ void Client::monitoraCartella(std::string folder){
                     
                     for(filesystem::path path: directory->getContent()){ 
                         path = directory->getPath()/path;
-                        std::cout << "SENDING: " << path << std::endl;
+                        //std::cout << "SENDING: " << path << std::endl;
                         inviaFile(path, FileStatus::modified, false);
                     }
                     sendMessageWithResponse("END", "ACK");
@@ -238,6 +239,7 @@ void Client::monitoraCartella(std::string folder){
                     }
             }
     };
+    //std::cout << directory->getChecksum() << std::endl;
     //mi metto in ascolto e attendo una modifica
     FileWatcher fw{folder, std::chrono::milliseconds(1000)};
     fw.start([this](std::string path_to_watch, FileStatus status) -> void {
@@ -320,8 +322,10 @@ void Client::downloadDirectory(){
             int size_text_serialize = 0;
             sock.read(&size_text_serialize, sizeof(size_text_serialize), 0);
             sendMessage(Message("ACK"));
+
             buf = new char[size_text_serialize];
             sock.read(buf, size_text_serialize, 0);
+
             ss << buf;
             // Unserialization
             Deserializer ia(ss);
@@ -369,7 +373,7 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
         //path p(path_to_watch);
         std::stringstream ss;
         while(true){
-            std::cout << "READ PATH: "<< path_to_watch.c_str() << std::endl;
+            //std::cout << "READ PATH: "<< path_to_watch.c_str() << std::endl;
             if(is_directory(path_to_watch)){
                 sendMessage(Message("DIRECTORY"));
                 Message m = awaitMessage(); //attendo un response da server
@@ -430,7 +434,7 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                     };
                     sock.write(buf.get(), num, 0); 
                     cont_char -= num;
-                    m = awaitMessage();
+                    //m = awaitMessage();
                 }
                 file.close();
                 std::cout << "FILE SEND " << relativeContent << std::endl;

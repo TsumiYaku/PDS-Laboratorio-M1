@@ -183,24 +183,24 @@ std::string Server::handleLogin(Socket* sock) {
     return user;
 }
 
-Message Server::awaitMessage(const std::string& user, int msg_size) {
+Message Server::awaitMessage(const std::string& user, int msg_size, MessageType type) {
     Socket *socket = &connectedUsers[user];
     std::cout << "Received message from user: " << user << std::endl;
     return awaitMessage(socket);
 }
 
-Message Server::awaitMessage(Socket* socket, int msg_size) {
+Message Server::awaitMessage(Socket* socket, int msg_size, MessageType type) {
     // Socket read
     std::unique_ptr<char[]> buf = std::make_unique<char[]>(msg_size);
     int size = socket->read(buf.get(), msg_size, 0);
     if (size == 0) throw std::runtime_error("Closed socket");
 
     // Unserialization
-    Message m(MessageType::text);
+    Message m(type);
     try {
         std::stringstream sstream;
         sstream << buf.get();
-        std::cout << sstream.str() << std::endl;
+        std::cout <<"DESERIALIZE: " << sstream.str() << std::endl;
         Deserializer ia(sstream);
         m.unserialize(ia, 0);
     }
@@ -215,6 +215,7 @@ Message Server::awaitMessage(Socket* socket, int msg_size) {
     return m;
 }
 
+
 void Server::sendMessage(const std::string& user, Message &&m) {
     Socket* socket = &connectedUsers[user];
     std::cout << "Sending message to user: " << user << std::endl;
@@ -226,6 +227,7 @@ void Server::sendMessage(Socket* socket, Message &&m) {
     std::stringstream sstream;
     try {
         Serializer oa(sstream);
+        std::cout << "SERIALIZE:" << sstream.str() ;
         m.serialize(oa, 0);
     }
     catch (boost::archive::archive_exception& e) {
@@ -287,7 +289,7 @@ bool Server::receiveFile(const std::string& user) {
     int size = socket->read(&val, sizeof(int), 0);
     if(size <= 0) throw std::runtime_error("receiveFile: error during receiving of file info");
     sendMessage(user, Message("ACK"));
-    FileWrapper fileInfo = awaitMessage(user, val).getFileWrapper();
+    FileWrapper fileInfo = awaitMessage(user, val, MessageType::file).getFileWrapper();
     sendMessage(user, Message("ACK"));
 
     // Check if the received message was a Directory or a File
