@@ -432,6 +432,10 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                         throw std::runtime_error("Impossible read file");
                         break;
                     };
+                    std::string s(buf.get());
+                    std::cout << "INVIO DI " << num << "/" << s.length() << " CHAR" << std::endl;
+                    
+                    std::cout << s <<  std::endl;
                     sock.write(buf.get(), num, 0); 
                     cont_char -= num;
                     //m = awaitMessage();
