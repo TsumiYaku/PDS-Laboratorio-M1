@@ -8,6 +8,8 @@ add_library(shared
         packets/FileWrapper.cpp
         packets/FileWrapper.h
         packets/FileStatus.h
+        SimpleCrypt.h
+        SimpleCrypt.cpp
         Folder.cpp
         Folder.h)
 

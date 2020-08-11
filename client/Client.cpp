@@ -20,7 +20,7 @@ Client::Client(std::string address, int port): address(address), port(port){
             break;
         }catch(std::runtime_error& e){
             std::cout << e.what() << std::endl;
-            std::cout << "TRY TO CONNENCT..." << std::endl;
+            std::cout << "TRY TO REPAIR..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -42,46 +42,19 @@ Client::Client(std::string address, int port): address(address), port(port){
 
 }
 
-/*Client::Client(Client &&other) {
-
-    this->sock = std::move(sock);
-    this->cont_error = other.cont_error;
-    this->sad = other.sad;
-    this->directory = other.directory;
-    this->address = std::move(other.address);
-    this->port = other.port;
-    other.directory = nullptr;
-    other.sock.closeSocket();
-    delete other.directory;
-  
-    std::cout <<"CLIENT MOVE"<<std::endl;
-}
-
-Client &Client::operator=(Client &&other) {
-    if(this != other){
-        this->sock = std::move(sock);
-        this->cont_error = other.cont_error;
-        this->sad = other.sad;
-        this->directory = other.directory;
-        this->address = std::move(other.address);
-        this->port = other.port;
-        other.directory = nullptr;
-        other.sock.closeSocket();
-        delete other.directory;
-        
-        std::cout <<"CLIENT MOVE OPERETOR="<<std::endl;
-    }
-    return *this;
-}*/
-
 void Client::sendMessage(Message &&m) {
     // Serialization
+    std::string s;
+    try{
     std::stringstream sstream;
     Serializer oa(sstream);
     m.serialize(oa, 0);
-
+    s =sstream.str();
+    }catch (boost::archive::archive_exception& e) {
+        throw std::runtime_error(e.what());
+    }
     // Socket write
-    std::string s(sstream.str());
+    
     log("Message send:" + m.getMessage());
     int length = s.length()+1;
     std::cout <<"TEXT SERIALIZE: "<< s.c_str() << std::endl;
@@ -99,38 +72,31 @@ Message Client::awaitMessage(size_t msg_size = SIZE_MESSAGE_TEXT) {
     std::stringstream sstream;
     sstream << buf;
     std::cout << "DESERIALIZE: "<< sstream.str() << std::endl;
-    Deserializer ia(sstream);
-    Message m(MessageType::text);
-    m.unserialize(ia, 0);
-    log("Message recieve:" + m.getMessage());
-    return m;
-}
-
-void Client::sendMessageWithResponse(std::string message, std::string response) {
-    while(true){
-         Message m = Message(message);
-         sendMessage(std::move(m));
-         //read response
-         m = awaitMessage();
-        if(m.getMessage().compare(response) == 0) break;
+    try{
+        Deserializer ia(sstream);
+        Message m(MessageType::text);
+        m.unserialize(ia, 0);
+        log("Message recieve:" + m.getMessage());
+        return m;
+    }catch (boost::archive::archive_exception& e) {
+        throw std::runtime_error(e.what());
     }
 }
 
-/*void Client::sendMessageWithInfoSerialize(Message &&m) {
-    // Serialization
-    std::stringstream ss;
-    Serializer ia(ss);
-    m.serialize(ia, 0);
-    std::string s(ss.str());
+void Client::sendMessageWithResponse(std::string message, std::string response) {
+    try{
+        while(true){
+            Message m = Message(message);
+            sendMessage(std::move(m));
+            //read response
+            m = awaitMessage();
+            if(m.getMessage().compare(response) == 0) break;
+        }
+    }catch(boost::archive::archive_exception& e) {
+        throw std::runtime_error(e.what());
+    }
+}
 
-    int size = s.length() + 1; //calcolo taglia testo serializzato
-    sock.write(&size, sizeof(size), 0);//invio taglia testo da deserializzare
-    std::cout <<"SERIALIZE SIZE: "<< size << std::endl;
-    m = awaitMessage(); //attendo ACK
-
-    sock.write(s.c_str(), strlen(s.c_str())+1, 0);//invio testo serializzato
-    std::cout <<"SERIALIZE CONTENT: "<< s.c_str()<<std::endl;
-}*/
 
 void Client::close(){
     sock.closeSocket();     
@@ -142,12 +108,13 @@ Client::~Client(){
     close();
 }
 
-bool Client::doLogin(std::string user){
+bool Client::doLogin(std::string user, std::string password){
     while(true){
         try{
             Message m = Message(MessageType::text);
             while(true){
-                m = Message("LOGIN_" + user);
+                SimpleCrypt crypt = SimpleCrypt();
+                m = Message("LOGIN_" + user + "_" + crypt.encrypt(password));
                 sendMessage(std::move(m));
                 m = awaitMessage();
                 if(m.getMessage().compare("OK") == 0 || m.getMessage().compare("NOT_OK") == 0) break;
@@ -160,7 +127,7 @@ bool Client::doLogin(std::string user){
         }
         catch(std::runtime_error& e){
             std::cout << e.what() << std::endl;
-            std::cout << "TRY TO CONNENCT..." << std::endl;
+            std::cout << "TRY TO REPAIR..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -220,7 +187,7 @@ void Client::monitoraCartella(std::string folder){
                 break; //ho eseguito tutto correttamente
             }catch(std::runtime_error& e){
                     std::cout << e.what() << std::endl;
-                    std::cout << "TRY TO CONNENCT..." << std::endl;
+                    std::cout << "TRY TO REPAIR..." << std::endl;
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                     cont_error++;
                     if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -230,7 +197,7 @@ void Client::monitoraCartella(std::string folder){
             }
             catch(boost::filesystem::filesystem_error& e){
                     std::cout << e.what() << std::endl;
-                    std::cout << "TRY TO RESOLVE..." << std::endl;
+                    std::cout << "TRY TO REPAIR..." << std::endl;
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                     cont_error++;
                     if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -286,7 +253,7 @@ void Client::monitoraCartella(std::string folder){
             }
         }catch(std::runtime_error& e){
             std::cout << e.what() << std::endl;
-            std::cout << "TRY TO CONNENCT..." << std::endl;
+            std::cout << "TRY TO REPAIR.." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -296,7 +263,7 @@ void Client::monitoraCartella(std::string folder){
         }
         catch(boost::filesystem::filesystem_error& e){
             std::cout << e.what() << std::endl;
-            std::cout << "TRY TO RESOLVE..." << std::endl;
+            std::cout << "TRY TO REPAIR..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){

@@ -17,6 +17,7 @@
 #include <Socket.h>
 #include <Checksum.h>
 #include <Folder.h>
+#include <SimpleCrypt.h>
 
 #include <boost/filesystem.hpp>
 #include <boost/serialization/serialization.hpp>
@@ -62,6 +63,6 @@ public:
     
     void close(); //chiude client
     //void recieveACK(Message&& m); //ricezione di un messaggio ACK
-    bool doLogin(std::string ); //effettua login. restituisce true se si è effettuato login da server o false se username è gia stato preso da altro user
+    bool doLogin(std::string, std::string ); //effettua login. restituisce true se si è effettuato login da server o false se username è gia stato preso da altro user
     void monitoraCartella(std::string ); //client in connessione con server e in ascolto per backup
 };
