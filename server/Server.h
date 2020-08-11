@@ -17,7 +17,6 @@ class Server {
     ServerSocket ss;
 
     // Synchronization structures
-    std::mutex fs_m; // mutex to handle filesystem concurrency
     std::mutex pool_m; // mutex to handle connection queue concurrency
     std::condition_variable pool_cv; // condition variable to handle queue concurrency
 

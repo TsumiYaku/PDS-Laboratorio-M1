@@ -10,11 +10,12 @@ using Serializer = boost::archive::text_oarchive;
 using Deserializer = boost::archive::text_iarchive;
 
 Server::Server(int port): ss(port) {
+    // Process pool initialization
     for(int i=0; i<POOL_SIZE; i++) {
         std::thread t([this]() -> void {
             std::string user;
             while (true) {
-                std::pair<std::string, Message> packet = this->dequeuePacket();
+                std::pair<std::string, Message> packet = this->dequeuePacket(); // Blocking read of the queue
                 user = packet.first;
                 try {
                     parsePacket(std::move(packet));
@@ -23,7 +24,7 @@ Server::Server(int port): ss(port) {
                     std::cout << e.what() << std::endl;
                     connectedUsers.erase(user); // Break connection with user if there are problems
                 }
-                freeUsers.push_back(user);
+                freeUsers.push_back(user); // User is again available to receive packets from the select
             }
         });
         t.detach();
@@ -33,6 +34,7 @@ Server::Server(int port): ss(port) {
 
 void Server::run() {
     std::cout << "Server ready, waiting for connections..." << std::endl;
+
     fd_set socketSet;
     int maxFd = 0;
     int activity;
@@ -72,8 +74,14 @@ void Server::run() {
                 /* MULTI THREAD EXECUTION, comment it if you need a single thread for debugging */
                 //enqueuePacket(std::pair<std::string, Message>(user, std::move(m))); // Feed packet to the pool
 
-                /* SINGLE THREAD EXECUTION, uncomment the following 2 lines if you need for debugging */
-                parsePacket(std::pair<std::string, Message>(user, std::move(m)));
+                /* SINGLE THREAD EXECUTION, uncomment the following lines if you need for debugging */
+                try {
+                    parsePacket(std::pair<std::string, Message>(user, std::move(m)));
+                }
+                catch (std::runtime_error& e) {
+                    std::cout << e.what() << std::endl;
+                    connectedUsers.erase(user); // Break connection with user if there are problems
+                }
                 freeUsers.push_back(user);
             }
         }
@@ -137,7 +145,7 @@ void Server::parsePacket(std::pair<std::string, Message> packet) {
         synchronize(user);
     else if (msg == "CREATE" || msg == "MODIFY" || msg == "ERASE") { // Folder listening management
         sendMessage(user, Message("ACK"));
-        while(receiveFile(user)) {};
+        receiveFile(user);
     }
 }
 
