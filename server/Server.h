@@ -19,6 +19,7 @@ class Server {
     // Synchronization structures
     std::mutex pool_m; // mutex to handle connection queue concurrency
     std::condition_variable pool_cv; // condition variable to handle queue concurrency
+    std::mutex userlist_m; // mutex to handle conurrent access to user list
 
     // Thread pool management
     std::vector<std::thread> pool; // thread pool for max number of concurrent connections running

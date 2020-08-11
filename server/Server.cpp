@@ -25,7 +25,9 @@ Server::Server(int port): ss(port) {
                     std::cout << e.what() << std::endl;
                     connectedUsers.erase(user); // Break connection with user if there are problems
                 }
+                this->userlist_m.lock();
                 freeUsers.push_back(user); // User is again available to receive packets from the select
+                this->userlist_m.unlock();
             }
         });
         t.detach();
@@ -57,6 +59,7 @@ void Server::run() {
         if((activity < 0) && (errno!=EINTR)) std::cout << "Select error" << std::endl;
 
         // Check who sent a request on their socket
+        userlist_m.lock(); // Locking userlist to avoid changes to the list during iteration
         for(const auto &user: freeUsers) {
             if(connectedUsers[user].isSet(socketSet)) {
                 std::cout << "CC ISSET " << std::endl;
@@ -92,8 +95,11 @@ void Server::run() {
                 std::cout << "PUSH BEFORE" << std::endl;
                 freeUsers.push_back(user);
                 std::cout << "PUSH AFTER" << std::endl;
+
+                break;
             }
         }
+        userlist_m.unlock();
 
         // If it was none of the clients, check if ServerSocket received a new connection
         if (ss.isSet(socketSet)) {
@@ -117,7 +123,9 @@ void Server::run() {
             }
             if(user != "") {
                 connectedUsers.insert(std::pair<std::string, Socket>(user, std::move(s)));
+                userlist_m.lock();
                 freeUsers.push_back(user);
+                userlist_m.unlock();
             }
         }
     }
