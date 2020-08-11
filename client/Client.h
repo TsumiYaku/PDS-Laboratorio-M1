@@ -47,7 +47,7 @@ class Client{
     void downloadDirectory(); //scarica il contenuto inviato dal server fino alla recezione del messagio END
     //std::string readline(); //legge una riga da command line del client
     void sendMessage(Message&&);
-    void sendMessageWithInfoSerialize(Message &&m);
+    //void sendMessageWithInfoSerialize(Message &&m);
     Message awaitMessage(size_t);
     void sendMessageWithResponse(std::string, std::string);
 

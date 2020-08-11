@@ -19,6 +19,7 @@ Server::Server(int port): ss(port) {
                 user = packet.first;
                 try {
                     parsePacket(std::move(packet));
+                     std::cout << "PARSE CREATE SERVER" << std::endl;
                 }
                 catch (std::runtime_error& e) {
                     std::cout << e.what() << std::endl;
@@ -41,25 +42,30 @@ void Server::run() {
 
     while(true) {
         maxFd = 0;
-
+        std::cout << "RESET BEFORE " << std::endl;
         FD_ZERO(&socketSet); // reset socket set
+        std::cout << "RESET AFTER " << std::endl;
         ss.addToSet(socketSet, maxFd); // add sever to the set
-
+        std::cout << "SS ADDTOSET AFTER " << std::endl;
         // add non-busy clients to the listening set
         for(const auto& user: freeUsers)
             connectedUsers[user].addToSet(socketSet, maxFd);
-
+        std::cout << "CC ADDTOSET AFTER " << std::endl;
         // Listen to socket changes
         activity = select(maxFd+1, &socketSet, NULL, NULL, NULL);
+        //std::cout << "CC ADDTOSET AFTER " << std::endl;
         if((activity < 0) && (errno!=EINTR)) std::cout << "Select error" << std::endl;
 
         // Check who sent a request on their socket
         for(const auto &user: freeUsers) {
             if(connectedUsers[user].isSet(socketSet)) {
+                std::cout << "CC ISSET " << std::endl;
                 Message m(MessageType::text);
                 // Check if socket has no errors or hasn't disconnected
                 try {
+                    std::cout << "AWAIT BEFORE " << std::endl;
                     m = awaitMessage(user);
+                    std::cout << "AWAIT AFTER " << std::endl;
                 }
                 catch (std::runtime_error& e) {
                     std::cout << e.what() << std::endl;
@@ -77,17 +83,21 @@ void Server::run() {
                 /* SINGLE THREAD EXECUTION, uncomment the following lines if you need for debugging */
                 try {
                     parsePacket(std::pair<std::string, Message>(user, std::move(m)));
+                    std::cout << "PARSE RUN" << std::endl;
                 }
                 catch (std::runtime_error& e) {
                     std::cout << e.what() << std::endl;
                     connectedUsers.erase(user); // Break connection with user if there are problems
                 }
+                std::cout << "PUSH BEFORE" << std::endl;
                 freeUsers.push_back(user);
+                std::cout << "PUSH AFTER" << std::endl;
             }
         }
 
         // If it was none of the clients, check if ServerSocket received a new connection
         if (ss.isSet(socketSet)) {
+            //std::cout << "ISSET AFTER" << std::endl;
             // Read incoming connection
             struct sockaddr_in addr;
             unsigned int len = sizeof(addr);
@@ -135,7 +145,7 @@ void Server::parsePacket(std::pair<std::string, Message> packet) {
 
     std::string msg(m.getMessage());
     std::string response;
-    //std::cout << msg << std::endl;
+    //
 
     // Check what message has been received
     // TODO: can't we somehow use a switch? Doesn't allow me with std::string
@@ -147,6 +157,7 @@ void Server::parsePacket(std::pair<std::string, Message> packet) {
         sendMessage(user, Message("ACK"));
         receiveFile(user);
     }
+    std::cout << msg << " OK" << std::endl; 
 }
 
 std::string Server::handleLogin(Socket* sock) {
@@ -191,7 +202,9 @@ Message Server::awaitMessage(const std::string& user, int msg_size, MessageType 
 Message Server::awaitMessage(Socket* socket, int msg_size, MessageType type) {
     // Socket read
     std::unique_ptr<char[]> buf = std::make_unique<char[]>(msg_size);
-    int size = socket->read(buf.get(), msg_size, 0);
+    int size;
+    socket->read(&size, sizeof(size), 0);
+    size = socket->read(buf.get(), size, 0);
     if (size == 0) throw std::runtime_error("Closed socket");
 
     // Unserialization
@@ -199,9 +212,9 @@ Message Server::awaitMessage(Socket* socket, int msg_size, MessageType type) {
     try {
         std::stringstream sstream;
         sstream << buf.get();
-        std::cout <<"DESERIALIZE: " << sstream.str() << std::endl;
         Deserializer ia(sstream);
         m.unserialize(ia, 0);
+        std::cout <<"DESERIALIZE: " << sstream.str() << std::endl;
     }
     catch (boost::archive::archive_exception& e) {
         throw std::runtime_error(e.what());
@@ -214,7 +227,6 @@ Message Server::awaitMessage(Socket* socket, int msg_size, MessageType type) {
     return m;
 }
 
-
 void Server::sendMessage(const std::string& user, Message &&m) {
     Socket* socket = &connectedUsers[user];
     sendMessage(socket, std::move(m));
@@ -225,8 +237,8 @@ void Server::sendMessage(Socket* socket, Message &&m) {
     std::stringstream sstream;
     try {
         Serializer oa(sstream);
-        std::cout << "SERIALIZE: " << sstream.str() ;
         m.serialize(oa, 0);
+        std::cout << "SERIALIZE: " << sstream.str() ;
     }
     catch (boost::archive::archive_exception& e) {
         throw std::runtime_error(e.what());
@@ -234,7 +246,9 @@ void Server::sendMessage(Socket* socket, Message &&m) {
 
     // Socket write
     std::string s(sstream.str());
-    socket->write(s.c_str(), strlen(s.c_str())+1, 0);
+    int length = s.length() + 1;
+    socket->write(&length, sizeof(length), 0);
+    socket->write(s.c_str(), length, 0);
 
     if(m.getType() == MessageType::text)
         std::cout << "\nMessage sent: " << m.getMessage() << std::endl;
@@ -260,10 +274,12 @@ void Server::synchronize(const std::string& user) {
     else if(msg == "UPDATE") {
         sendMessage(user, Message("ACK"));
         downloadDirectory(user);
+        std::cout << "UPDATE SUCCESS"<<std::endl;
     }
     else if(msg == "DOWNLOAD") {
         sendMessage(user, Message("ACK"));
         uploadDirectory(user);
+        std::cout << "DOWNLOAD SUCCESS"<<std::endl;
     }
 }
 

@@ -83,18 +83,18 @@ void Client::sendMessage(Message &&m) {
     // Socket write
     std::string s(sstream.str());
     log("Message send:" + m.getMessage());
-    int length = strlen(s.c_str())+1;
+    int length = s.length()+1;
     std::cout <<"TEXT SERIALIZE: "<< s.c_str() << std::endl;
-    //sock.write(&length,sizeof(length) , 0);
+    sock.write(&length,sizeof(length) , 0);
     sock.write(s.c_str(),length, 0);
 }
 
 Message Client::awaitMessage(size_t msg_size = SIZE_MESSAGE_TEXT) {
     // Socket read
-    //int size;
-    //sock.read(&size, sizeof(size), 0);
-    char buf[msg_size];
-    sock.read(buf, msg_size, 0);
+    int size;
+    sock.read(&size, sizeof(size), 0);
+    char buf[size];
+    sock.read(buf, size, 0);
     // Unserialization
     std::stringstream sstream;
     sstream << buf;
@@ -116,7 +116,7 @@ void Client::sendMessageWithResponse(std::string message, std::string response) 
     }
 }
 
-void Client::sendMessageWithInfoSerialize(Message &&m) {
+/*void Client::sendMessageWithInfoSerialize(Message &&m) {
     // Serialization
     std::stringstream ss;
     Serializer ia(ss);
@@ -130,7 +130,7 @@ void Client::sendMessageWithInfoSerialize(Message &&m) {
 
     sock.write(s.c_str(), strlen(s.c_str())+1, 0);//invio testo serializzato
     std::cout <<"SERIALIZE CONTENT: "<< s.c_str()<<std::endl;
-}
+}*/
 
 void Client::close(){
     sock.closeSocket();     
@@ -335,11 +335,11 @@ void Client::downloadDirectory(){
             directory->writeDirectory(f.getPath());
         }
         else{
-            int size_text_serialize = 0;
-            sock.read(&(size_text_serialize), sizeof(size_text_serialize), 0);
-            buf = new char[size_text_serialize];
+            //int size_text_serialize = 0;
+            //sock.read(&(size_text_serialize), sizeof(size_text_serialize), 0);
+            buf = new char[SIZE_MESSAGE_TEXT];
             sendMessage(Message("ACK"));
-            sock.read(buf, size_text_serialize, 0);
+            sock.read(buf, SIZE_MESSAGE_TEXT, 0);
             ss << buf;
             // Unserialization
             Deserializer ia(ss);
@@ -431,9 +431,9 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                         break;
                     };
                     std::string s(buf.get());
-                    std::cout << "INVIO DI " << num << "/" << s.length() << " CHAR" << std::endl;
+                    //std::cout << "INVIO DI " << num << "/" << s.length() << " CHAR" << std::endl;
                     
-                    std::cout << s <<  std::endl;
+                    //std::cout << s <<  std::endl;
                     sock.write(buf.get(), num, 0); 
                     cont_char -= num;
                     m = awaitMessage();
