@@ -185,7 +185,6 @@ std::string Server::handleLogin(Socket* sock) {
 
 Message Server::awaitMessage(const std::string& user, int msg_size, MessageType type) {
     Socket *socket = &connectedUsers[user];
-    std::cout << "Received message from user: " << user << std::endl;
     return awaitMessage(socket);
 }
 
@@ -209,16 +208,15 @@ Message Server::awaitMessage(Socket* socket, int msg_size, MessageType type) {
     }
 
     if(m.getType() == MessageType::text)
-        std::cout << "Message received: " << m.getMessage() << std::endl;
+        std::cout << "\nMessage received: " << m.getMessage() << std::endl;
     else
-        std::cout << "Message received" << std::endl;
+        std::cout << "\nMessage received" << std::endl;
     return m;
 }
 
 
 void Server::sendMessage(const std::string& user, Message &&m) {
     Socket* socket = &connectedUsers[user];
-    std::cout << "Sending message to user: " << user << std::endl;
     sendMessage(socket, std::move(m));
 }
 
@@ -227,7 +225,7 @@ void Server::sendMessage(Socket* socket, Message &&m) {
     std::stringstream sstream;
     try {
         Serializer oa(sstream);
-        std::cout << "SERIALIZE:" << sstream.str() ;
+        std::cout << "SERIALIZE: " << sstream.str() ;
         m.serialize(oa, 0);
     }
     catch (boost::archive::archive_exception& e) {
@@ -239,9 +237,9 @@ void Server::sendMessage(Socket* socket, Message &&m) {
     socket->write(s.c_str(), strlen(s.c_str())+1, 0);
 
     if(m.getType() == MessageType::text)
-        std::cout << "Message sent: " << m.getMessage() << std::endl;
+        std::cout << "\nMessage sent: " << m.getMessage() << std::endl;
     else
-        std::cout << "Sending file..." << m.getFileWrapper().getPath().relative_path()<< std::endl;
+        std::cout << "\nSending file..." << m.getFileWrapper().getPath().relative_path()<< std::endl;
 }
 
 void Server::sendChecksum(const std::string& user) {
@@ -285,11 +283,11 @@ bool Server::receiveFile(const std::string& user) {
     if(m.getMessage().compare("ERR") == 0) throw std::runtime_error("receiveFile: Generic error on client side");
 
     // Receive file info
-    int val;
-    int size = socket->read(&val, sizeof(int), 0);
-    if(size <= 0) throw std::runtime_error("receiveFile: error during receiving of file info");
-    sendMessage(user, Message("ACK"));
-    FileWrapper fileInfo = awaitMessage(user, val, MessageType::file).getFileWrapper();
+    //int val;
+    //int size = socket->read(&val, sizeof(int), 0);
+    //if(size <= 0) throw std::runtime_error("receiveFile: error during receiving of file info");
+    //sendMessage(user, Message("ACK"));
+    FileWrapper fileInfo = awaitMessage(user, SIZE_MESSAGE_TEXT, MessageType::file).getFileWrapper();
     sendMessage(user, Message("ACK"));
 
     // Check if the received message was a Directory or a File

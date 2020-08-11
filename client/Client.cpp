@@ -383,12 +383,10 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                
                 Message m2 = Message(std::move(f));
                 //m2.print();
-                sendMessageWithInfoSerialize(std::move(m2));
-
+                sendMessage(std::move(m2));
                 m = awaitMessage(); //attendo ACK per il fileWrapper
 
                 std::cout << "DIRECTORY SEND " << directory->removeFolderPath(path_to_watch.string()) << std::endl;
-                
                 m = awaitMessage(); //attendo ACK per la fine della creazione della cartella
 
                 //leggo messaggio da server
@@ -406,7 +404,7 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                 //invio fileInfo
                 FileWrapper f = FileWrapper(relativeContent, status, size);
                 Message m2 = Message(std::move(f));
-                sendMessageWithInfoSerialize(std::move(m2));
+                sendMessage(std::move(m2));
                 m = awaitMessage(); //attendo ACK
 
                 //invio SIZE_MESSAGE_TEXT byte alla volta
@@ -444,6 +442,7 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                 std::cout << "FILE SEND " << relativeContent << std::endl;
 
                 //leggo ACK
+                m = awaitMessage();
                 if(m.getMessage().compare("ACK") == 0) break;
 
             }else if(!exists(path_to_watch)){ //file cancellato
@@ -455,7 +454,7 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                
                 Message m2 = Message(std::move(f));
                
-                sendMessageWithInfoSerialize(std::move(m2));
+                sendMessage(std::move(m2));
 
                 m = awaitMessage(); //attendo ACK
 
