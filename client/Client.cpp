@@ -438,7 +438,7 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
                     std::cout << s <<  std::endl;
                     sock.write(buf.get(), num, 0); 
                     cont_char -= num;
-                    //m = awaitMessage();
+                    m = awaitMessage();
                 }
                 file.close();
                 std::cout << "FILE SEND " << relativeContent << std::endl;

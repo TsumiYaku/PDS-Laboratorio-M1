@@ -322,6 +322,7 @@ bool Server::receiveFile(const std::string& user) {
                     int receivedSize = socket->read(buf.get(), num, 0);
                     f.writeFile(fileInfo.getPath(), buf.get(), receivedSize);
                     count_char -= receivedSize;
+                    sendMessage(user, Message("ACK"));
                 }
                 break;
             }
