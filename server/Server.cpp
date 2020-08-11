@@ -41,21 +41,27 @@ void Server::run() {
     fd_set socketSet;
     int maxFd = 0;
     int activity;
+    struct timeval tv;
 
     while(true) {
         maxFd = 0;
-        std::cout << "RESET BEFORE " << std::endl;
         FD_ZERO(&socketSet); // reset socket set
-        std::cout << "RESET AFTER " << std::endl;
         ss.addToSet(socketSet, maxFd); // add sever to the set
-        std::cout << "SS ADDTOSET AFTER " << std::endl;
+
+        // Reset timeout value
+        tv.tv_sec = 2; // Every 2 seconds select will go on timeout to check if new connections are free again
+        tv.tv_usec = 0;
+
         // add non-busy clients to the listening set
+        userlist_m.lock(); // Locking userlist to avoid changes to the list during iteration
+
         for(const auto& user: freeUsers)
             connectedUsers[user].addToSet(socketSet, maxFd);
-        std::cout << "CC ADDTOSET AFTER " << std::endl;
+
+        userlist_m.unlock();
+
         // Listen to socket changes
-        activity = select(maxFd+1, &socketSet, NULL, NULL, NULL);
-        //std::cout << "CC ADDTOSET AFTER " << std::endl;
+        activity = select(maxFd+1, &socketSet, NULL, NULL, &tv);
         if((activity < 0) && (errno!=EINTR)) std::cout << "Select error" << std::endl;
 
         // Check who sent a request on their socket
@@ -81,21 +87,19 @@ void Server::run() {
                 freeUsers.remove(user); // User is now busy
 
                 /* MULTI THREAD EXECUTION, comment it if you need a single thread for debugging */
-                //enqueuePacket(std::pair<std::string, Message>(user, std::move(m))); // Feed packet to the pool
+                enqueuePacket(std::pair<std::string, Message>(user, std::move(m))); // Feed packet to the pool
 
                 /* SINGLE THREAD EXECUTION, uncomment the following lines if you need for debugging */
+                /*
                 try {
                     parsePacket(std::pair<std::string, Message>(user, std::move(m)));
-                    std::cout << "PARSE RUN" << std::endl;
                 }
                 catch (std::runtime_error& e) {
                     std::cout << e.what() << std::endl;
                     connectedUsers.erase(user); // Break connection with user if there are problems
                 }
-                std::cout << "PUSH BEFORE" << std::endl;
                 freeUsers.push_back(user);
-                std::cout << "PUSH AFTER" << std::endl;
-
+                */
                 break;
             }
         }
@@ -103,7 +107,6 @@ void Server::run() {
 
         // If it was none of the clients, check if ServerSocket received a new connection
         if (ss.isSet(socketSet)) {
-            //std::cout << "ISSET AFTER" << std::endl;
             // Read incoming connection
             struct sockaddr_in addr;
             unsigned int len = sizeof(addr);
@@ -122,6 +125,7 @@ void Server::run() {
                 std::cout << "runtime_error: " << e.what() << std::endl;
             }
             if(user != "") {
+                std::cout << "Connected user: " << user << std::endl;
                 connectedUsers.insert(std::pair<std::string, Socket>(user, std::move(s)));
                 userlist_m.lock();
                 freeUsers.push_back(user);
@@ -344,7 +348,7 @@ bool Server::receiveFile(const std::string& user) {
                     int receivedSize = socket->read(buf.get(), num, 0);
                     f.writeFile(fileInfo.getPath(), buf.get(), receivedSize);
                     count_char -= receivedSize;
-                    sendMessage(user, Message("ACK"));
+                    //sendMessage(user, Message("ACK"));
                 }
                 break;
             }
