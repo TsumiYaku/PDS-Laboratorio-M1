@@ -197,9 +197,10 @@ void Client::monitoraCartella(std::string folder){
 
     directory = new Folder(user, folder);
     //mi metto in ascolto su un thread separato e attendo una modifica
-    std::thread start([this, folder] () {
-        FileWatcher fw{folder, std::chrono::milliseconds(1000)};
-        fw.start([this](std::string path_to_watch, FileStatus status) -> void {
+    FileWatcher fw{folder, std::chrono::milliseconds(1000)};
+    fw.first_syncro();
+    std::thread start([this, &folder, &fw] () {
+        fw.start([this](std::string path_to_watch, FileStatus status, bool locked, bool first_syncro) -> void {
         std::lock_guard<std::mutex> lg(mu);
         try{
             switch(status) {
@@ -208,9 +209,10 @@ void Client::monitoraCartella(std::string folder){
                 //std::cout << prec_path << " " << path_to_watch;
                 //if(prec_path != path_to_watch){
                     std::cout << "Created: " << path_to_watch << '\n';
-                    if(before_first_synch)
+                    std::cout << first_syncro << " " << locked <<std::endl;
+                    if(first_syncro && !locked)
                        before_first_synch_request.push(std::make_pair(path_to_watch, status));
-                    else
+                    else if(!locked && !first_syncro)
                         sendCreateFileAsynch(path_to_watch);
                 //}
                 break;
@@ -221,10 +223,11 @@ void Client::monitoraCartella(std::string folder){
                 //if(prec_path != path_to_watch){
                     //dico al server che è stato modificato un file e lo invio al server
                     std::cout << "Modified: " << path_to_watch << '\n'; 
+                    std::cout << first_syncro << " " << locked <<std::endl;
                     //invio il file
-                    if(before_first_synch)
+                    if(first_syncro && !locked)
                         before_first_synch_request.push(std::make_pair(path_to_watch, status));
-                    else
+                    else if(!locked && !first_syncro)
                        sendModifyFileAsynch(path_to_watch);
                     
                     
@@ -234,9 +237,10 @@ void Client::monitoraCartella(std::string folder){
             case FileStatus::erased:{
                 //dico al server che è stato modificato un file e lo invio al server
                 std::cout << "Erased: " << path_to_watch << '\n';
-                if(before_first_synch)
+                std::cout << first_syncro << " " << locked <<std::endl;
+                if(first_syncro && !locked)
                         before_first_synch_request.push(std::make_pair(path_to_watch, status));
-                    else
+                else if(!locked && !first_syncro)
                         sendEraseFileAsynch(path_to_watch);
                 break;
             }
@@ -318,8 +322,12 @@ void Client::monitoraCartella(std::string folder){
                 sendMessage(std::move(m));
             }
             else if(checksumServer != 0 && checksumClient==0){ 
+                //fw.not_first_syncro();
                 sendMessageWithResponse("DOWNLOAD", "ACK");
+                fw.lock();
                 downloadDirectory(); //scarico contenuto del server
+                //fw.first_syncro();
+                fw.unlock();
             }
             else{ //la cartella esiste e quindi la invio al server  
                 //invio richiesta update directory server (fino ad ottenere response ACK)
@@ -338,7 +346,7 @@ void Client::monitoraCartella(std::string folder){
                     catch(...){std::cout<<"Tento client" << std::endl;continue;}
                 }
             }
-            before_first_synch = false;
+            fw.not_first_syncro();
             //invio le eventuali modifiche che sono state effettuate durante la prima sincronizzazione in ordine di richiesta
             while(!before_first_synch_request.empty()){
                 std::cout  << "PUSH" << std::endl;
@@ -358,7 +366,6 @@ void Client::monitoraCartella(std::string folder){
                 std::cout  << "POP" << std::endl;
 
             }
-            
             break; //ho eseguito tutto correttamente
         }catch(std::runtime_error& e){
             std::cout << e.what() << std::endl;
