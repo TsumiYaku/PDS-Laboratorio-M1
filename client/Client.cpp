@@ -46,43 +46,54 @@ Client::Client(std::string address, int port): address(address), port(port){
 
 void Client::sendMessage(Message &&m) {
     // Serialization
-    std::string s;
-    try{
     std::stringstream sstream;
-    Serializer oa(sstream);
-    m.serialize(oa, 0);
-    s =sstream.str();
-    }catch (boost::archive::archive_exception& e) {
+    try {
+        Serializer oa(sstream);
+        m.serialize(oa, 0);
+        std::cout << "SERIALIZE: " << sstream.str() ;
+    }
+    catch (boost::archive::archive_exception& e) {
         throw std::runtime_error(e.what());
     }
+
     // Socket write
-    
-    log("Message send:" + m.getMessage());
-    int length = s.length()+1;
-    std::cout <<"TEXT SERIALIZE: "<< s.c_str() << std::endl;
-    sock.write(&length,sizeof(length) , 0);
-    sock.write(s.c_str(),length, 0);
+    std::string s(sstream.str());
+    int length = s.length() + 1;
+    sock.write(&length, sizeof(length), 0);
+    sock.write(s.c_str(), length, 0);
+
+    if(m.getType() == MessageType::text)
+        std::cout << "\nMessage sent: " << m.getMessage() << std::endl;
+    else
+        std::cout << "\nSending file info: " << m.getFileWrapper().getPath().relative_path()<< std::endl;
 }
 
-Message Client::awaitMessage(size_t msg_size = SIZE_MESSAGE_TEXT) {
+Message Client::awaitMessage(size_t msg_size = SIZE_MESSAGE_TEXT, MessageType type) {
     // Socket read
+    std::unique_ptr<char[]> buf = std::make_unique<char[]>(msg_size);
     int size;
     sock.read(&size, sizeof(size), 0);
-    char buf[size];
-    sock.read(buf, size, 0);
+    size = sock.read(buf.get(), size, 0);
+    if (size == 0) throw std::runtime_error("Closed socket");
+
     // Unserialization
-    std::stringstream sstream;
-    sstream << buf;
-    std::cout << "DESERIALIZE: "<< sstream.str() << std::endl;
-    try{
+    Message m(type);
+    try {
+        std::stringstream sstream;
+        sstream << buf.get();
         Deserializer ia(sstream);
-        Message m(MessageType::text);
         m.unserialize(ia, 0);
-        log("Message recieve:" + m.getMessage());
-        return m;
-    }catch (boost::archive::archive_exception& e) {
+        std::cout <<"DESERIALIZE: " << sstream.str() << std::endl;
+    }
+    catch (boost::archive::archive_exception& e) {
         throw std::runtime_error(e.what());
     }
+
+    if(m.getType() == MessageType::text)
+        std::cout << "\nMessage received: " << m.getMessage() << std::endl;
+    else
+        std::cout << "\nMessage received" << std::endl;
+    return m;
 }
 
 void Client::sendMessageWithResponse(std::string message, std::string response) {
@@ -90,7 +101,7 @@ void Client::sendMessageWithResponse(std::string message, std::string response) 
         while(true){
             Message m = Message(message);
             sendMessage(std::move(m));
-            //read response
+            //read responseawait
             m = awaitMessage();
             if(m.getMessage().compare(response) == 0) break;
         }
@@ -378,62 +389,12 @@ void Client::monitoraCartella(std::string folder){
 
 
 void Client::downloadDirectory(){
-    std::stringstream ss;
-    char* buf = new char[SIZE_MESSAGE_TEXT];
-    while(true){
-        //read FILE , DIRECTORY, TERMINATED or FS_ERR
-        Message m = awaitMessage();
-        sendMessage(Message("OK"));
-        if(m.getMessage().compare("END") == 0) break;
-        if(m.getMessage().compare("FS_ERR") == 0) break;
+    directory->wipeFolder(); // Even if it shouldn't be needed, wipe it just to be sure
+    std::cout << "Waiting directory from server" << std::endl;
 
-        if(m.getMessage().compare("DIRECTORY") == 0){
-            int size_text_serialize = 0;
-            sock.read(&size_text_serialize, sizeof(size_text_serialize), 0);
-            sendMessage(Message("ACK"));
-
-            buf = new char[size_text_serialize];
-            sock.read(buf, size_text_serialize, 0);
-
-            ss << buf;
-            // Unserialization
-            Deserializer ia(ss);
-            m = Message(MessageType::file);
-            m.unserialize(ia, 0);
-            FileWrapper f = m.getFileWrapper();
-            directory->writeDirectory(f.getPath());
-        }
-        else{
-            //int size_text_serialize = 0;
-            //sock.read(&(size_text_serialize), sizeof(size_text_serialize), 0);
-            buf = new char[SIZE_MESSAGE_TEXT];
-            sendMessage(Message("ACK"));
-            sock.read(buf, SIZE_MESSAGE_TEXT, 0);
-            ss << buf;
-            // Unserialization
-            Deserializer ia(ss);
-            m = Message(MessageType::file);
-            m.unserialize(ia, 0);
-            FileWrapper f = m.getFileWrapper();
-            sendMessage(Message("ACK"));
-
-            //read all packets of file and write append
-            int i=0;
-            int num_packets = f.getSize()/SIZE_MESSAGE_TEXT;
-            if(f.getSize()%SIZE_MESSAGE_TEXT != 0) num_packets++;
-
-            for(i=0;i<num_packets;i++){
-               char* data = new char[SIZE_MESSAGE_TEXT];
-               sock.read(data, SIZE_MESSAGE_TEXT, 0);
-               directory->writeFile(f.getPath(), data, strlen(data));
-               sendMessage(Message("ACK"));
-               delete data;
-            }
-        }
-        m = Message("ACK");
-        sendMessage(std::move(m));
-    };
-    delete buf;
+    // Waiting for all files
+    while (riceviFile()) {};
+    sendMessage(Message("ACK"));
 }
 
 void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool conThread){
@@ -546,4 +507,70 @@ void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool c
     }else{
         fun();
     }
+}
+
+bool Client::riceviFile() {
+    // Receive command and answer ACK
+    Message m = awaitMessage();
+    sendMessage(Message("ACK"));
+
+    // In case we're done receiving a series
+    if(m.getMessage().compare("END") == 0) return false;
+
+    // Errors handling
+    if(m.getMessage().compare("FS_ERR") == 0) throw std::runtime_error("receiveFile: File system error on client side");
+    if(m.getMessage().compare("ERR") == 0) throw std::runtime_error("receiveFile: Generic error on client side");
+
+    // Receive file info
+    FileWrapper fileInfo = awaitMessage(SIZE_MESSAGE_TEXT, MessageType::file).getFileWrapper();
+    sendMessage(Message("ACK"));
+
+    // Check if the received message was a Directory or a File
+    if(m.getMessage().compare("DIRECTORY") == 0 )
+        switch (fileInfo.getStatus()) {
+            case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
+                directory->deleteFile(fileInfo.getPath());
+            case FileStatus::created :
+                directory->writeDirectory(fileInfo.getPath());
+                break;
+            case FileStatus::erased :
+                directory->deleteFile(fileInfo.getPath());
+                break;
+            default:
+                break;
+        }
+    else if(m.getMessage().compare("FILE") == 0 ) {
+        switch (fileInfo.getStatus()) {
+            case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
+                directory->deleteFile(fileInfo.getPath());
+            case FileStatus::created : {
+                std::cout << "Reading blocks from socket" << std::endl;
+                // Read chunks of data
+                int count_char = fileInfo.getSize();
+                int num = 0;
+                while (count_char > 0) {
+                    std::cout << "Remaining data: " << count_char << std::endl;
+                    num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
+                    std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
+                    int receivedSize = sock.read(buf.get(), num, 0);
+                    directory->writeFile(fileInfo.getPath(), buf.get(), receivedSize);
+                    count_char -= receivedSize;
+                }
+                break;
+            }
+            case FileStatus::erased :
+                directory->deleteFile(fileInfo.getPath());
+                break;
+            default:
+                break;
+        }
+    }
+    else if (m.getMessage().compare("FILE_DEL") == 0) {
+        if(!fileInfo.getPath().empty())
+            directory->deleteFile(fileInfo.getPath());
+    }
+
+    // Send ACK to indicate operation success
+    sendMessage(Message("ACK"));
+    return true;
 }

@@ -49,6 +49,7 @@ class Client{
 
     void inviaFile(path, FileStatus, bool); //ivia file al server in modalità asincrona o sincrona(conThread = false)
     void downloadDirectory(); //scarica il contenuto inviato dal server fino alla recezione del messagio END
+    bool riceviFile();
     //std::string readline(); //legge una riga da command line del client
     void sendMessage(Message&&);
     void sendCreateFileAsynch(std::string path_to_watch);
@@ -56,7 +57,7 @@ class Client{
     void sendModifyFileAsynch(std::string path_to_watch);
 
     //void sendMessageWithInfoSerialize(Message &&m);
-    Message awaitMessage(size_t);
+    Message awaitMessage(size_t, MessageType type = MessageType::text);
     void sendMessageWithResponse(std::string, std::string);
 
 

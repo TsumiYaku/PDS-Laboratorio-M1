@@ -265,7 +265,7 @@ void Server::sendMessage(Socket* socket, Message &&m) {
     if(m.getType() == MessageType::text)
         std::cout << "\nMessage sent: " << m.getMessage() << std::endl;
     else
-        std::cout << "\nSending file..." << m.getFileWrapper().getPath().relative_path()<< std::endl;
+        std::cout << "\nSending file info: " << m.getFileWrapper().getPath().relative_path()<< std::endl;
 }
 
 void Server::sendChecksum(const std::string& user) {
@@ -311,10 +311,6 @@ bool Server::receiveFile(const std::string& user) {
     if(m.getMessage().compare("ERR") == 0) throw std::runtime_error("receiveFile: Generic error on client side");
 
     // Receive file info
-    //int val;
-    //int size = socket->read(&val, sizeof(int), 0);
-    //if(size <= 0) throw std::runtime_error("receiveFile: error during receiving of file info");
-    //sendMessage(user, Message("ACK"));
     FileWrapper fileInfo = awaitMessage(user, SIZE_MESSAGE_TEXT, MessageType::file).getFileWrapper();
     sendMessage(user, Message("ACK"));
 
@@ -369,14 +365,81 @@ bool Server::receiveFile(const std::string& user) {
     return true;
 }
 
+void Server::sendFile(const std::string& user, const filesystem::path& path) {
+    Folder f(user, user);
+    filesystem::path filePath = f.getPath()/path;
+    Socket *socket = &connectedUsers[user];
+
+    // Sending command message
+    std::string command;
+    int size = 0;
+    if(filesystem::is_directory(filePath))
+        command = "DIRECTORY";
+    else if(filesystem::is_regular_file(filePath)) {
+        command = "FILE";
+        size = f.getFileSize(path);
+    }
+    else if(!filesystem::exists(filePath))
+        command = "FILE_DEL";
+    else { // in case of any error
+        sendMessage(user, Message("ERR"));
+        throw std::runtime_error("File not supported");
+    }
+    sendMessage(user, Message(std::move(command)));
+    Message m = awaitMessage(user); // waiting for ACK
+
+    // Sending File Info
+    FileWrapper fileInfo = FileWrapper(path, FileStatus::modified, size);//path, status, size file
+    sendMessage(user, Message(std::move(fileInfo)));
+    m = awaitMessage(user); // waiting fileInfo ACK
+
+    // if it's a file, also send the data
+    if(is_regular_file(filePath)){
+        filesystem::ifstream file; // file to send
+        file.open(filePath, std::ios::in | std::ios::binary);
+        int count_char = size; // remaining size to send
+        int num; // size of packet to write into the socket
+        while(count_char > 0){
+            // Init buffer
+            num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
+            std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
+
+            // Throw error if it can't read the file
+            if(!file.read(buf.get(), num)){
+                sendMessage(user, Message("FS_ERR"));
+                m = awaitMessage(user);
+                throw std::runtime_error("Impossible read file");
+            };
+
+            // Socket sending
+            socket->write(buf.get(), num, 0);
+            count_char -= num;
+        }
+        file.close();
+    }
+
+    m = awaitMessage(user); //waiting final ACK
+}
+
 void Server::downloadDirectory(const std::string& user) {
     Folder f(user, user);
-    f.wipeFolder();
+    f.wipeFolder(); // remove all files present in the folder since we're receiving updated ones
+
     std::cout << "Waiting directory from user " << user << std::endl;
+
+    // Keep waiting for files
     while(receiveFile(user)) {}
     sendMessage(user, Message("ACK"));
 }
 
 void Server::uploadDirectory(const std::string& user) {
+    Folder f(user, user);
 
+    // Send all files
+    for(filesystem::path path: f.getContent())
+        sendFile(user, path);
+
+    // Signal end of file upload and await ACK
+    sendMessage(user, Message("END"));
+    Message m = awaitMessage(user);
 }

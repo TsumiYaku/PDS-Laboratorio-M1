@@ -47,6 +47,7 @@ private:
     void sendChecksum(const std::string& user); // send the checksum associated to the user's folder
     void synchronize(const std::string& user); // synchronize the user's folder
     bool receiveFile(const std::string& user); // wait for file from user
+    void sendFile(const std::string& user, const filesystem::path& path);
     void downloadDirectory(const std::string& user); // download user's directory
     void uploadDirectory(const std::string& user); // send the directory to the user
 

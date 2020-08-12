@@ -18,19 +18,13 @@ FileWrapper::FileWrapper(filesystem::path filePath, /*char *data,*/ FileStatus s
 
 FileWrapper::FileWrapper(FileWrapper &&other) {
     filePath = other.filePath;
-    //data = other.data;
-    //other.data = nullptr;
     len = other.len;
     status = other.status;
 }
 
 FileWrapper &FileWrapper::operator=(FileWrapper &&other) noexcept {
     if (this != &other) {
-        //delete [] data;
-
-        filePath == other.filePath;
-        //data = other.data;
-        //other.data = nullptr;
+        filePath = other.filePath;
         len = other.len;
         status = other.status;
     }
