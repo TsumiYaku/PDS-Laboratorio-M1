@@ -9,8 +9,10 @@ void log(std::string msg){
 /*************************CLIENT********************************************/
 Client::Client(std::string address, int port): address(address), port(port){
     cont_error = 0;
+    before_first_synch = true;
     while(true){
         try{
+            prec_status = FileStatus::nothing;
             struct sockaddr_in sockaddrIn;
             sockaddrIn.sin_port = ntohs(port);
             sockaddrIn.sin_family = AF_INET;
@@ -148,117 +150,213 @@ bool Client::doLogin(std::string user, std::string password){
     }
 }
 
+void Client::sendCreateFileAsynch(std::string path_to_watch){
+    std::thread create([this, path_to_watch]()->void{
+        //prec_path = path_to_watch;
+        //prec_status = FileStatus::nothing;//perchè ho gia creato il file e inviato
+        sendMessageWithResponse("CREATE", "ACK");
+        inviaFile(path(path_to_watch), FileStatus::created, false); 
+    });
+    create.detach();
+}
+
+void Client::sendModifyFileAsynch(std::string path_to_watch){
+    std::thread modify([this, path_to_watch]()->void{
+        //prec_path = path_to_watch;
+        //prec_status = FileStatus::nothing;//perchè ho gia creato il file e inviato
+        sendMessageWithResponse("MODIFY", "ACK"); //invio richiesta modifica   
+        inviaFile(path(path_to_watch), FileStatus::modified, false); 
+    });
+    modify.detach();
+}
+
+void Client::sendEraseFileAsynch(std::string path_to_watch){
+    std::thread erase([this, path_to_watch]()->void{
+        //prec_status = FileStatus::erased;
+        //prec_path = path_to_watch;
+        sendMessageWithResponse("ERASE", "ACK");//invio richiesta cancellazione
+        inviaFile(path(path_to_watch), FileStatus::erased, false); 
+    });
+    erase.detach();
+}
+
+
+
 void Client::monitoraCartella(std::string folder){
-        
-        while(true){ //ritento sincornizzazione iniziale in casi di errori per NUM.. volte, altrimenti confuto un errore permanente e chiudo il programma
-            try{
-                directory = new Folder(user, folder);
-                path dir(folder);
-                std::cout <<"MONITORING " << dir.string() << std::endl;
-                Message m = Message("SYNC");
-                sendMessage(std::move(m));
-                int checksumServer = 0;
-                int checksumClient = (int)directory->getChecksum();
-                //attendo checksum
-                sock.read(&checksumServer, sizeof(checksumServer), 0); //ricevo checksum da server
-                std::cout << "CHECKSUM CLIENT " << checksumClient <<std::endl;
-                std::cout << "CHECKSUM SERVER " << checksumServer <<std::endl;
-                //sendMessage(Message("ACK"));
-                if(checksumClient == checksumServer){ //OK
-                    Message m = Message("OK");
-                    sendMessage(std::move(m));
-                }
-                else if(checksumServer != 0 && checksumClient==0){ //TODO
-                    sendMessageWithResponse("DOWNLOAD", "ACK");
-                    downloadDirectory(); //scarico contenuto del server
-                }
-                else{ //la cartella esiste e quindi la invio al server  
-                    //invio richiesta update directory server (fino ad ottenere response ACK)
-                    sendMessageWithResponse("UPDATE", "ACK");
-                    //invio solo i file con checksum diverso
-                    
-                    for(filesystem::path path: directory->getContent()){ 
-                        path = directory->getPath()/path;
-                        //std::cout << "SENDING: " << path << std::endl;
-                        inviaFile(path, FileStatus::modified, false);
-                    }
-                    sendMessageWithResponse("END", "ACK");
-                }
-                break; //ho eseguito tutto correttamente
-            }catch(std::runtime_error& e){
-                    std::cout << e.what() << std::endl;
-                    std::cout << "TRY TO REPAIR..." << std::endl;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                    cont_error++;
-                    if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
-                        delete directory;
-                        exit(-1);
-                    }
-            }
-            catch(boost::filesystem::filesystem_error& e){
-                    std::cout << e.what() << std::endl;
-                    std::cout << "TRY TO REPAIR..." << std::endl;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                    cont_error++;
-                    if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
-                        delete directory;
-                        exit(-1);
-                    }
-            }
-    };
-    //std::cout << directory->getChecksum() << std::endl;
-    //mi metto in ascolto e attendo una modifica
-    FileWatcher fw{folder, std::chrono::milliseconds(1000)};
-    fw.start([this](std::string path_to_watch, FileStatus status) -> void {
+
+    directory = new Folder(user, folder);
+    //mi metto in ascolto su un thread separato e attendo una modifica
+    std::thread start([this, folder] () {
+        FileWatcher fw{folder, std::chrono::milliseconds(1000)};
+        fw.start([this](std::string path_to_watch, FileStatus status) -> void {
+        std::lock_guard<std::mutex> lg(mu);
         try{
             switch(status) {
-                case FileStatus::created:{
+            case FileStatus::created:{
+                //prec_status = FileStatus::created;
+                //std::cout << prec_path << " " << path_to_watch;
+                //if(prec_path != path_to_watch){
                     std::cout << "Created: " << path_to_watch << '\n';
-                    //invio richiesta creazione file
-                    sendMessageWithResponse("CREATE", "ACK");
+                    if(before_first_synch)
+                       before_first_synch_request.push(std::make_pair(path_to_watch, status));
+                    else
+                        sendCreateFileAsynch(path_to_watch);
+                //}
+                break;
+            }
+            case FileStatus::modified:{
+                //prec_status = FileStatus::modified;
+                //std::cout << prec_path << " " << path_to_watch;
+                //if(prec_path != path_to_watch){
+                    //dico al server che è stato modificato un file e lo invio al server
+                    std::cout << "Modified: " << path_to_watch << '\n'; 
+                    //invio il file
+                    if(before_first_synch)
+                        before_first_synch_request.push(std::make_pair(path_to_watch, status));
+                    else
+                       sendModifyFileAsynch(path_to_watch);
+                    
+                    
+                //}
+                break;
+            }
+            case FileStatus::erased:{
+                //dico al server che è stato modificato un file e lo invio al server
+                std::cout << "Erased: " << path_to_watch << '\n';
+                if(before_first_synch)
+                        before_first_synch_request.push(std::make_pair(path_to_watch, status));
+                    else
+                        sendEraseFileAsynch(path_to_watch);
+                break;
+            }
+            case FileStatus::nothing:{
+                /*if(prec_status == FileStatus::created){//il file ha finito la sua creazione e puo essere mandato (per file grosse dimensioni)
+                    std::cout << "Created: " << path_to_watch << '\n';
                     //invio file
                     std::thread create([this, path_to_watch]()->void{
+                        prec_status = FileStatus::nothing;
+                        prec_path = path_to_watch;
+                        sendMessageWithResponse("CREATE", "ACK");//invio richiesta creazione file
                         inviaFile(path(path_to_watch), FileStatus::created, false); 
                     });
                     create.detach();
-                    break;
                 }
-                case FileStatus::modified:{
+                if(prec_status == FileStatus::modified){//file è stato modificato (per file di grosse dimensioni che ci mettono piu scansioni del filewatcher)
                     //dico al server che è stato modificato un file e lo invio al server
                     std::cout << "Modified: " << path_to_watch << '\n';
-                    //invio richiesta modifica
-                    sendMessageWithResponse("MODIFY", "ACK");           
+                    
+                                
                     //invio il file
                     std::thread modify([this, path_to_watch]()->void{
+                        prec_status = FileStatus::nothing;
+                        prec_path = path_to_watch;
+                        sendMessageWithResponse("MODIFY", "ACK");  //invio richiesta modifica
                         inviaFile(path(path_to_watch), FileStatus::modified, false); 
                     });
                     modify.detach();
-                    break;
-                }
-                case FileStatus::erased:{
-                    //dico al server che è stato modificato un file e lo invio al server
-                    std::cout << "Erased: " << path_to_watch << '\n';
-                    //invio richiesta cancellazione
-                    sendMessageWithResponse("ERASE", "ACK");
-                    //invio file
-                    std::thread erase([this, path_to_watch]()->void{
-                        inviaFile(path(path_to_watch), FileStatus::erased, false); 
-                    });
-                    erase.detach();
-                }
-                case FileStatus::nothing:{
-                    break;
+                }*/
+                break;
                 }
                 default:break;
             }
+            }catch(std::runtime_error& e){
+                std::cout << e.what() << std::endl;
+                std::cout << "TRY TO REPAIR.." << std::endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                cont_error++;
+                if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
+                    delete directory;
+                    exit(-2);
+                }
+            }
+            catch(boost::filesystem::filesystem_error& e){
+                std::cout << e.what() << std::endl;
+                std::cout << "TRY TO REPAIR..." << std::endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                cont_error++;
+                if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
+                    delete directory;
+                    exit(-2);
+                }
+            }
+        }); 
+    });
+    //sincronizzazione iniziale
+    while(true){ //ritento sincornizzazione iniziale in casi di errori per NUM.. volte, altrimenti confuto un errore permanente e chiudo il programma
+        try{
+            path dir(folder);           
+            std::cout <<"MONITORING " << dir.string() << std::endl;
+            Message m = Message("SYNC");
+            sendMessage(std::move(m));
+            int checksumServer = 0;
+            int checksumClient;
+            while(true){
+                    try{
+                        checksumClient = (int)directory->getChecksum();
+                        break;
+                    }
+                    catch(...){std::cout<<"Tento checksum" << std::endl;continue;}
+            }
+            //attendo checksum
+            sock.read(&checksumServer, sizeof(checksumServer), 0); //ricevo checksum da server
+            std::cout << "CHECKSUM CLIENT " << checksumClient <<std::endl;
+            std::cout << "CHECKSUM SERVER " << checksumServer <<std::endl;
+            //sendMessage(Message("ACK"));
+            if(checksumClient == checksumServer){ //OK
+                Message m = Message("OK");
+                sendMessage(std::move(m));
+            }
+            else if(checksumServer != 0 && checksumClient==0){ 
+                sendMessageWithResponse("DOWNLOAD", "ACK");
+                downloadDirectory(); //scarico contenuto del server
+            }
+            else{ //la cartella esiste e quindi la invio al server  
+                //invio richiesta update directory server (fino ad ottenere response ACK)
+                sendMessageWithResponse("UPDATE", "ACK");
+                //invio solo i file con checksum diverso
+                while(true){
+                    try{
+                        for(filesystem::path path: directory->getContent()){ 
+                            path = directory->getPath()/path;
+                            std::cout  << path << std::endl;
+                            inviaFile(path, FileStatus::modified, false);
+                        }
+                        sendMessageWithResponse("END", "ACK");
+                        break;
+                    }
+                    catch(...){std::cout<<"Tento client" << std::endl;continue;}
+                }
+            }
+            before_first_synch = false;
+            //invio le eventuali modifiche che sono state effettuate durante la prima sincronizzazione in ordine di richiesta
+            while(!before_first_synch_request.empty()){
+                std::cout  << "PUSH" << std::endl;
+                std::pair<std::string, FileStatus> message = std::move(before_first_synch_request.front());
+                switch(message.second){
+                    case FileStatus::created:
+                        sendCreateFileAsynch(message.first);
+                        break;
+                    case FileStatus::modified:
+                        sendModifyFileAsynch(message.first);
+                        break;
+                    case FileStatus::erased:
+                        sendEraseFileAsynch(message.first);
+                        break;
+                }
+                before_first_synch_request.pop();
+                std::cout  << "POP" << std::endl;
+
+            }
+            
+            break; //ho eseguito tutto correttamente
         }catch(std::runtime_error& e){
             std::cout << e.what() << std::endl;
-            std::cout << "TRY TO REPAIR.." << std::endl;
+            std::cout << "TRY TO REPAIR..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
                 delete directory;
-                exit(-2);
+                exit(-1);
             }
         }
         catch(boost::filesystem::filesystem_error& e){
@@ -268,10 +366,14 @@ void Client::monitoraCartella(std::string folder){
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
                 delete directory;
-                exit(-2);
+                exit(-1);
             }
         }
-    }); 
+    };
+
+    
+    //syncro.join();
+    start.join();
 }
 
 

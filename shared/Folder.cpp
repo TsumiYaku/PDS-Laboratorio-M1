@@ -14,13 +14,19 @@ Folder::Folder(const std::string &owner, const std::string &path) : owner(owner)
 std::vector<filesystem::path> Folder::getContent() {
     std::vector<filesystem::path> v;
 
-    // Recursive research inside the folder
-    std::cout <<"CONTENT DIR: " << std::endl;
-
-    for(filesystem::directory_entry& d : filesystem::recursive_directory_iterator(this->folderPath)){
-        v.push_back(removeFolderPath((d.path().string())));
-         //std::cout << removeFolderPath((d.path().string())) <<std::endl;
+    while(true){
+        // Recursive research inside the folder
+        std::cout <<"CONTENT DIR: " << std::endl;
+        try{
+            for(filesystem::directory_entry& d : filesystem::recursive_directory_iterator(this->folderPath)){
+                v.push_back(removeFolderPath((d.path().string())));
+                //std::cout << removeFolderPath((d.path().string())) <<std::endl;
+            }
+            break;
+        }
+        catch(...){std::cout<<"Tento" << std::endl; continue;}
     }
+
     return v;
 }
 

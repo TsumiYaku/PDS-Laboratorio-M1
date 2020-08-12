@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sstream>
 #include <optional>
+#include <queue>
 #include <ios>
 
 #include "FileWatcher.h"
@@ -25,14 +26,13 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/serialization/access.hpp>
 #include <boost/serialization/string.hpp>
-#define NUM_POSSIBLE_TRY_RESOLVE_ERROR 1000
+#define NUM_POSSIBLE_TRY_RESOLVE_ERROR 100
 
 using namespace boost::filesystem;
 using Serializer = boost::archive::text_oarchive;
 using Deserializer = boost::archive::text_iarchive;
 
 class Client{
-
     Socket sock;
     std::mutex mu;
     std::string user;
@@ -40,7 +40,10 @@ class Client{
     std::string address;
     int cont_error;
     Folder* directory;
-
+    FileStatus prec_status;
+    std::string prec_path;
+    bool before_first_synch;
+    std::queue<std::pair<std::string, FileStatus>> before_first_synch_request;
     int port;
     int contFileToSend = 0;
 
@@ -48,6 +51,10 @@ class Client{
     void downloadDirectory(); //scarica il contenuto inviato dal server fino alla recezione del messagio END
     //std::string readline(); //legge una riga da command line del client
     void sendMessage(Message&&);
+    void sendCreateFileAsynch(std::string path_to_watch);
+    void sendEraseFileAsynch(std::string path_to_watch);
+    void sendModifyFileAsynch(std::string path_to_watch);
+
     //void sendMessageWithInfoSerialize(Message &&m);
     Message awaitMessage(size_t);
     void sendMessageWithResponse(std::string, std::string);
