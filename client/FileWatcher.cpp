@@ -57,17 +57,17 @@ void FileWatcher::unlock(){
 }
 
 void FileWatcher::first_syncro(){
-    std::lock_guard<std::mutex> lg(mu);
+    std::lock_guard<std::mutex> lg(mu2);
     first_syncrinize = true;
 }
 
 bool FileWatcher::getFirstSyncro(){
-    std::lock_guard<std::mutex> lg(mu);
+    std::lock_guard<std::mutex> lg(mu2);
     return first_syncrinize;
 }
 
 void FileWatcher::not_first_syncro(){
-    std::lock_guard<std::mutex> lg(mu);
+    std::lock_guard<std::mutex> lg(mu2);
     first_syncrinize = false;
 }
 
