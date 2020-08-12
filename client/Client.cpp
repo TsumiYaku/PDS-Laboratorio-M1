@@ -238,7 +238,7 @@ void Client::monitoraCartella(std::string folder){
                 //dico al server che è stato modificato un file e lo invio al server
                 std::cout << "Erased: " << path_to_watch << '\n';
                 std::cout << first_syncro << " " << locked <<std::endl;
-                if(first_syncro && !locked)
+                if(first_syncro) //anche in locked devo propagare la cancellazione
                         before_first_synch_request.push(std::make_pair(path_to_watch, status));
                 else if(!locked && !first_syncro)
                         sendEraseFileAsynch(path_to_watch);
