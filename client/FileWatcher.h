@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <string>
 #include <packets/FileStatus.h>
+#include <mutex>
 
 using namespace boost::filesystem;
 
@@ -22,6 +23,7 @@ class FileWatcher {
      std::string path_to_watch;
      std::chrono::duration<int, std::milli> delay;
      std::mutex mu;
+     std::mutex mu2;
      bool locked;
      bool first_syncrinize;
 public:
