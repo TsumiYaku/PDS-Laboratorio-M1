@@ -10,15 +10,15 @@
 #include <string.h>
 #include <sstream>
 #include <optional>
-#include <queue>
+#include <map>
 #include <ios>
+#include <condition_variable>
 
 #include "FileWatcher.h"
 #include <packets/Message.h>
 #include <Socket.h>
 #include <Checksum.h>
 #include <Folder.h>
-#include <SimpleCrypt.h>
 
 #include <boost/filesystem.hpp>
 #include <boost/serialization/serialization.hpp>
@@ -34,7 +34,7 @@ using Deserializer = boost::archive::text_iarchive;
 
 class Client{
     Socket sock;
-    std::mutex mu;
+    std::mutex mu, mu2, muSend;
     std::string user;
     struct sockaddr_in* sad;
     std::string address;
@@ -43,8 +43,11 @@ class Client{
     FileStatus prec_status;
     std::string prec_path;
     bool before_first_synch;
-    std::queue<std::pair<std::string, FileStatus>> before_first_synch_request;
+    std::map<std::string, FileStatus> request;
     int port;
+    int cont_nothing = 0;
+    //std::condition_variable cv_request;
+
     int contFileToSend = 0;
 
     void inviaFile(path, FileStatus, bool); //ivia file al server in modalità asincrona o sincrona(conThread = false)
@@ -59,7 +62,8 @@ class Client{
     //void sendMessageWithInfoSerialize(Message &&m);
     Message awaitMessage(size_t, MessageType type = MessageType::text);
     void sendMessageWithResponse(std::string, std::string);
-
+    void sendAllRequest(FileWatcher& fw, bool first_syncro = false);
+    void sendWrapperAllRequest(FileWatcher& fw, bool first_syncro = false);
 
 public:
     Client(const Client&) = delete;

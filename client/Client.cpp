@@ -9,6 +9,7 @@ void log(std::string msg){
 /*************************CLIENT********************************************/
 Client::Client(std::string address, int port): address(address), port(port){
     cont_error = 0;
+    cont_nothing = 0;
     before_first_synch = true;
     while(true){
         try{
@@ -162,8 +163,7 @@ bool Client::doLogin(std::string user, std::string password){
 
 void Client::sendCreateFileAsynch(std::string path_to_watch){
     std::thread create([this, path_to_watch]()->void{
-        //prec_path = path_to_watch;
-        //prec_status = FileStatus::nothing;//perchè ho gia creato il file e inviato
+        std::lock_guard<std::mutex> lg(muSend);
         sendMessageWithResponse("CREATE", "ACK");
         inviaFile(path(path_to_watch), FileStatus::created, false); 
     });
@@ -172,8 +172,7 @@ void Client::sendCreateFileAsynch(std::string path_to_watch){
 
 void Client::sendModifyFileAsynch(std::string path_to_watch){
     std::thread modify([this, path_to_watch]()->void{
-        //prec_path = path_to_watch;
-        //prec_status = FileStatus::nothing;//perchè ho gia creato il file e inviato
+        std::lock_guard<std::mutex> lg(muSend);
         sendMessageWithResponse("MODIFY", "ACK"); //invio richiesta modifica   
         inviaFile(path(path_to_watch), FileStatus::modified, false); 
     });
@@ -182,8 +181,7 @@ void Client::sendModifyFileAsynch(std::string path_to_watch){
 
 void Client::sendEraseFileAsynch(std::string path_to_watch){
     std::thread erase([this, path_to_watch]()->void{
-        //prec_status = FileStatus::erased;
-        //prec_path = path_to_watch;
+        std::lock_guard<std::mutex> lg(muSend);
         sendMessageWithResponse("ERASE", "ACK");//invio richiesta cancellazione
         inviaFile(path(path_to_watch), FileStatus::erased, false); 
     });
@@ -191,88 +189,94 @@ void Client::sendEraseFileAsynch(std::string path_to_watch){
 }
 
 
+void Client::sendWrapperAllRequest(FileWatcher& fw, bool first_syncro){//wrapper invio le richieste
+    std::lock_guard<std::mutex> lg(mu2);
+    //std::cout << "NOT EMPTY" << std::endl;
+    sendAllRequest(fw);
+
+    //while(!request.empty()) {cv_request.wait(lg);} //attendo che sia vuota la mappa
+}
+
+void Client::sendAllRequest(FileWatcher& fw, bool first_syncro){//scandisco la coda delle richieste e le invio al server che si occuperà di smistarle
+    //std::lock_guard<std::mutex> lg(mu2);
+    //std::cout << "LISTA" << std::endl;
+    for(std::pair<std::string, FileStatus> t : request){
+         switch(t.second){
+             case FileStatus::created:
+                 //std::cout << t.first << " create" << std::endl;
+                 sendCreateFileAsynch(t.first);
+                break;
+             case FileStatus::modified:
+                //std::cout << t.first << " modify" << std::endl;
+                sendModifyFileAsynch(t.first);
+                break;
+             case FileStatus::erased:
+                //std::cout << t.first << " erase" << std::endl;
+                sendEraseFileAsynch(t.first);
+                break;
+             default:break;
+         }
+    }
+    request.clear();//pulisco la coda delle richieste
+    if(!first_syncro) fw.restart();//filewatcher può ripartire a caricare le richieste fino a che non ci sono richieste
+    //cv_request.notify_all();
+}
 
 void Client::monitoraCartella(std::string folder){
 
     directory = new Folder(user, folder);
     //mi metto in ascolto su un thread separato e attendo una modifica
-    FileWatcher fw{folder, std::chrono::milliseconds(1000)};
+    FileWatcher fw{folder, std::chrono::milliseconds(2000)};
     fw.first_syncro();
+
     std::thread start([this, &folder, &fw] () {
-        fw.start([this](std::string path_to_watch, FileStatus status, bool locked, bool first_syncro) -> void {
-        std::lock_guard<std::mutex> lg(mu);
-        try{
-            switch(status) {
-            case FileStatus::created:{
-                //prec_status = FileStatus::created;
-                //std::cout << prec_path << " " << path_to_watch;
-                //if(prec_path != path_to_watch){
-                    std::cout << "Created: " << path_to_watch << '\n';
-                    std::cout << first_syncro << " " << locked <<std::endl;
-                    if(first_syncro && !locked)
-                       before_first_synch_request.push(std::make_pair(path_to_watch, status));
-                    else if(!locked && !first_syncro)
-                        sendCreateFileAsynch(path_to_watch);
-                //}
-                break;
-            }
-            case FileStatus::modified:{
-                //prec_status = FileStatus::modified;
-                //std::cout << prec_path << " " << path_to_watch;
-                //if(prec_path != path_to_watch){
-                    //dico al server che è stato modificato un file e lo invio al server
-                    std::cout << "Modified: " << path_to_watch << '\n'; 
-                    std::cout << first_syncro << " " << locked <<std::endl;
-                    //invio il file
-                    if(first_syncro && !locked)
-                        before_first_synch_request.push(std::make_pair(path_to_watch, status));
-                    else if(!locked && !first_syncro)
-                       sendModifyFileAsynch(path_to_watch);
-                    
-                    
-                //}
-                break;
-            }
-            case FileStatus::erased:{
-                //dico al server che è stato modificato un file e lo invio al server
-                std::cout << "Erased: " << path_to_watch << '\n';
-                std::cout << first_syncro << " " << locked <<std::endl;
-                if(first_syncro) //anche in locked devo propagare la cancellazione
-                        before_first_synch_request.push(std::make_pair(path_to_watch, status));
-                else if(!locked && !first_syncro)
-                        sendEraseFileAsynch(path_to_watch);
-                break;
-            }
-            case FileStatus::nothing:{
-                /*if(prec_status == FileStatus::created){//il file ha finito la sua creazione e puo essere mandato (per file grosse dimensioni)
-                    std::cout << "Created: " << path_to_watch << '\n';
-                    //invio file
-                    std::thread create([this, path_to_watch]()->void{
-                        prec_status = FileStatus::nothing;
-                        prec_path = path_to_watch;
-                        sendMessageWithResponse("CREATE", "ACK");//invio richiesta creazione file
-                        inviaFile(path(path_to_watch), FileStatus::created, false); 
-                    });
-                    create.detach();
+        fw.start([this, &fw](std::string path_to_watch, FileStatus status, bool locked, bool first_syncro) -> void {
+            std::lock_guard<std::mutex> lg(mu);
+            try{
+                switch(status) {
+                    case FileStatus::created:{
+                            std::cout << "Created: " << path_to_watch << '\n';
+                            cont_nothing = 0;
+                            if(!locked && (exists(path(path_to_watch))))
+                            request.insert(std::make_pair(path_to_watch, status)); //carico la richiesta di creazione nella coda delle richieste
+                        //}
+                        break;
+                    }
+                    case FileStatus::modified:{
+                        //dico al server che è stato modificato un file e lo invio al server
+                        std::cout << "Modified: " << path_to_watch << '\n'; 
+                        cont_nothing = 0;
+                        if(!locked && (request.find(path_to_watch) == request.end()) && (exists(path(path_to_watch))) ){ 
+                            request.insert(std::make_pair(path_to_watch, status)); //se il file non è stato creato prima e non c'è un lock
+                        }
+                        break;
+                    }
+                    case FileStatus::erased:{
+                        //dico al server che è stato modificato un file e lo invio al server
+                        std::cout << "Erased: " << path_to_watch << '\n';
+                        //std::cout << first_syncro << " " << locked <<std::endl;
+                        cont_nothing = 0; //non ho inviato le richieste ancora
+                        request.insert(std::make_pair(path_to_watch, status));
+                        break;
+                    }
+                    case FileStatus::nothing:{//invio le richieste accodate
+                        if(!first_syncro){
+                            fw.freeze();
+                            std::cout << "NOTHING" << std::endl;
+                            if(!request.empty()){
+                                if(cont_nothing == 0){ 
+                                  sendWrapperAllRequest(fw); //restart in sendAllRequest. Invio le richieste e intanto rendo il fileWatcer frizzato 
+                                  cont_nothing++;
+                                }
+                            }else{
+                                cont_nothing=0;
+                                fw.restart();
+                            }
+                        }
+                        break;
+                    }
+                    default: break;
                 }
-                if(prec_status == FileStatus::modified){//file è stato modificato (per file di grosse dimensioni che ci mettono piu scansioni del filewatcher)
-                    //dico al server che è stato modificato un file e lo invio al server
-                    std::cout << "Modified: " << path_to_watch << '\n';
-                    
-                                
-                    //invio il file
-                    std::thread modify([this, path_to_watch]()->void{
-                        prec_status = FileStatus::nothing;
-                        prec_path = path_to_watch;
-                        sendMessageWithResponse("MODIFY", "ACK");  //invio richiesta modifica
-                        inviaFile(path(path_to_watch), FileStatus::modified, false); 
-                    });
-                    modify.detach();
-                }*/
-                break;
-                }
-                default:break;
-            }
             }catch(std::runtime_error& e){
                 std::cout << e.what() << std::endl;
                 std::cout << "TRY TO REPAIR.." << std::endl;
@@ -295,6 +299,7 @@ void Client::monitoraCartella(std::string folder){
             }
         }); 
     });
+
     //sincronizzazione iniziale
     while(true){ //ritento sincornizzazione iniziale in casi di errori per NUM.. volte, altrimenti confuto un errore permanente e chiudo il programma
         try{
@@ -322,11 +327,14 @@ void Client::monitoraCartella(std::string folder){
             }
             else if(checksumServer != 0 && checksumClient==0){ 
                 //fw.not_first_syncro();
+               
+                fw.freeze();
+                //fw.lock();
                 sendMessageWithResponse("DOWNLOAD", "ACK");
-                fw.lock();
                 downloadDirectory(); //scarico contenuto del server
                 //fw.first_syncro();
-                fw.unlock();
+                //fw.unlock();
+                fw.restart();
             }
             else{ //la cartella esiste e quindi la invio al server  
                 //invio richiesta update directory server (fino ad ottenere response ACK)
@@ -345,26 +353,11 @@ void Client::monitoraCartella(std::string folder){
                     catch(...){std::cout<<"Tento client" << std::endl;continue;}
                 }
             }
-            fw.not_first_syncro();
             //invio le eventuali modifiche che sono state effettuate durante la prima sincronizzazione in ordine di richiesta
-            while(!before_first_synch_request.empty()){
-                std::cout  << "PUSH" << std::endl;
-                std::pair<std::string, FileStatus> message = std::move(before_first_synch_request.front());
-                switch(message.second){
-                    case FileStatus::created:
-                        sendCreateFileAsynch(message.first);
-                        break;
-                    case FileStatus::modified:
-                        sendModifyFileAsynch(message.first);
-                        break;
-                    case FileStatus::erased:
-                        sendEraseFileAsynch(message.first);
-                        break;
-                }
-                before_first_synch_request.pop();
-                std::cout  << "POP" << std::endl;
+            if(!request.empty())
+                  sendWrapperAllRequest(fw, true);//non devo effettuare restart se metto true
+            fw.not_first_syncro();
 
-            }
             break; //ho eseguito tutto correttamente
         }catch(std::runtime_error& e){
             std::cout << e.what() << std::endl;
@@ -405,7 +398,7 @@ void Client::downloadDirectory(){
 
 void Client::inviaFile(filesystem::path path_to_watch, FileStatus status, bool conThread){
     std::function<void(void)> fun = [this, path_to_watch, status] () -> void {
-        std::lock_guard<std::mutex> lg(mu);
+        //std::lock_guard<std::mutex> lg(mu);
         //path p(path_to_watch);
         std::stringstream ss;
         while(true){
