@@ -13,6 +13,7 @@ Server::Server(int port): ss(port) {
     // Process pool initialization
     for(int i=0; i<POOL_SIZE; i++) {
         std::thread t([this]() -> void {
+            //std::lock_guard<std::mutex> lg()
             std::string user;
             while (true) {
                 std::pair<std::string, Message> packet = this->dequeuePacket(); // Blocking read of the queue
@@ -208,12 +209,15 @@ std::string Server::handleLogin(Socket* sock) {
 
 Message Server::awaitMessage(const std::string& user, int msg_size, MessageType type) {
     Socket *socket = &connectedUsers[user];
+    //std::cout << socket << std::endl;
     return awaitMessage(socket);
 }
 
 Message Server::awaitMessage(Socket* socket, int msg_size, MessageType type) {
     // Socket read
+    //std::cout << msg_size << std::endl;
     std::unique_ptr<char[]> buf = std::make_unique<char[]>(msg_size);
+    //std::cout << msg_size << std::endl;
     int size;
     socket->read(&size, sizeof(size), 0);
     size = socket->read(buf.get(), size, 0);
@@ -318,7 +322,7 @@ bool Server::receiveFile(const std::string& user) {
     if(m.getMessage().compare("DIRECTORY") == 0 )
         switch (fileInfo.getStatus()) {
         case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
-            f.deleteFile(fileInfo.getPath());
+            //f.deleteFile(fileInfo.getPath());
         case FileStatus::created :
             f.writeDirectory(fileInfo.getPath());
             break;
