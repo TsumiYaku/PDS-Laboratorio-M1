@@ -5,6 +5,7 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <libnet.h>
 #include <unistd.h>
+#include "AuthManager.h"
 
 using Serializer = boost::archive::text_oarchive;
 using Deserializer = boost::archive::text_iarchive;
@@ -175,13 +176,16 @@ void Server::parsePacket(std::pair<std::string, Message> packet) {
 
 std::string Server::handleLogin(Socket* sock) {
     std::string user;
+    std::string pass;
 
     // Initially awaits login
     Message m = awaitMessage(sock);
 
     // If it's not a login message...
-    if(m.getMessage().find("LOGIN") == std::string::npos)
+    if(m.getMessage().find("LOGIN") == std::string::npos) {
         sendMessage(sock, Message("NOT_OK"));
+        return "";
+    }
     else {
         // Extract username from login msg
         std::string msg = m.getMessage();
@@ -189,6 +193,7 @@ std::string Server::handleLogin(Socket* sock) {
         first = (int)msg.find('_') + 1;
         second = (int)msg.find('_', first);
         user = msg.substr(first, second - first);
+        pass = msg.substr(second+1);
 
         // Check if user is already logged
         std::map<std::string, Socket>::iterator it;
@@ -196,14 +201,20 @@ std::string Server::handleLogin(Socket* sock) {
             if (it->first == user) {
                 std::cout << "User already logged" << std::endl;
                 sendMessage(sock, Message("NOT_OK"));
-                user = "";
+                return "";
             }
     }
 
-    // TODO: authentication with password
+    // DB authentication
+    bool success = AuthManager::tryLogin(user, pass);
+    if (success)
+        sendMessage(sock, Message("OK"));
+    else {
+        sendMessage(sock, Message("NOT_OK"));
+        return "";
+    }
 
     // All checks passed
-    sendMessage(sock, Message("OK"));
     return user;
 }
 
