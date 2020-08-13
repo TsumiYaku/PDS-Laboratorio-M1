@@ -126,8 +126,7 @@ bool Client::doLogin(std::string user, std::string password){
         try{
             Message m = Message(MessageType::text);
             while(true){
-                SimpleCrypt crypt = SimpleCrypt();
-                m = Message("LOGIN_" + user + "_" + crypt.encrypt(password));
+                m = Message("LOGIN_" + user + "_" + password);
                 sendMessage(std::move(m));
                 m = awaitMessage();
                 if(m.getMessage().compare("OK") == 0 || m.getMessage().compare("NOT_OK") == 0) break;
