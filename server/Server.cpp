@@ -6,6 +6,7 @@
 #include <libnet.h>
 #include <unistd.h>
 #include "AuthManager.h"
+#include <communication/Exchanger.h>
 
 using Serializer = boost::archive::text_oarchive;
 using Deserializer = boost::archive::text_iarchive;
@@ -28,7 +29,7 @@ Server::Server(int port): ss(port) {
                     connectedUsers.erase(user); // Break connection with user if there are problems
                 }
                 this->userlist_m.lock();
-                freeUsers.push_back(user); // User is again available to receive packets from the select
+                freeUsers.push_back(user); // User is again available to receive communication from the select
                 this->userlist_m.unlock();
             }
         });
@@ -159,17 +160,16 @@ void Server::parsePacket(std::pair<std::string, Message> packet) {
 
     std::string msg(m.getMessage());
     std::string response;
-    //
 
     // Check what message has been received
-    // TODO: can't we somehow use a switch? Doesn't allow me with std::string
     if(msg == "CHECK") // If client asks checksum
         sendChecksum(user);
     else if (msg == "SYNC") // If client asks to sync files
         synchronize(user);
     else if (msg == "CREATE" || msg == "MODIFY" || msg == "ERASE") { // Folder listening management
+        Folder f(user, user);
         sendMessage(user, Message("ACK"));
-        receiveFile(user);
+        FileExchanger::receiveFile(&connectedUsers[user], &f);
     }
     std::cout << msg << " OK" << std::endl; 
 }
@@ -179,11 +179,11 @@ std::string Server::handleLogin(Socket* sock) {
     std::string pass;
 
     // Initially awaits login
-    Message m = awaitMessage(sock);
+    Message m = MessageExchanger::awaitMessage(sock);
 
     // If it's not a login message...
     if(m.getMessage().find("LOGIN") == std::string::npos) {
-        sendMessage(sock, Message("NOT_OK"));
+        MessageExchanger::sendMessage(sock, Message("NOT_OK"));
         return "";
     }
     else {
@@ -200,7 +200,7 @@ std::string Server::handleLogin(Socket* sock) {
         for (it = connectedUsers.begin(); it != connectedUsers.end(); it++)
             if (it->first == user) {
                 std::cout << "User already logged" << std::endl;
-                sendMessage(sock, Message("NOT_OK"));
+                MessageExchanger::sendMessage(sock, Message("NOT_OK"));
                 return "";
             }
     }
@@ -208,9 +208,9 @@ std::string Server::handleLogin(Socket* sock) {
     // DB authentication
     bool success = AuthManager::tryLogin(user, pass);
     if (success)
-        sendMessage(sock, Message("OK"));
+        MessageExchanger::sendMessage(sock, Message("OK"));
     else {
-        sendMessage(sock, Message("NOT_OK"));
+        MessageExchanger::sendMessage(sock, Message("NOT_OK"));
         return "";
     }
 
@@ -221,66 +221,12 @@ std::string Server::handleLogin(Socket* sock) {
 Message Server::awaitMessage(const std::string& user, int msg_size, MessageType type) {
     Socket *socket = &connectedUsers[user];
     //std::cout << socket << std::endl;
-    return awaitMessage(socket);
-}
-
-Message Server::awaitMessage(Socket* socket, int msg_size, MessageType type) {
-    // Socket read
-    //std::cout << msg_size << std::endl;
-    std::unique_ptr<char[]> buf = std::make_unique<char[]>(msg_size);
-    //std::cout << msg_size << std::endl;
-    int size;
-    socket->read(&size, sizeof(size), 0);
-    size = socket->read(buf.get(), size, 0);
-    if (size == 0) throw std::runtime_error("Closed socket");
-
-    // Unserialization
-    Message m(type);
-    try {
-        std::stringstream sstream;
-        sstream << buf.get();
-        Deserializer ia(sstream);
-        m.unserialize(ia, 0);
-        std::cout <<"DESERIALIZE: " << sstream.str() << std::endl;
-    }
-    catch (boost::archive::archive_exception& e) {
-        throw std::runtime_error(e.what());
-    }
-
-    if(m.getType() == MessageType::text)
-        std::cout << "\nMessage received: " << m.getMessage() << std::endl;
-    else
-        std::cout << "\nMessage received" << std::endl;
-    return m;
+    return MessageExchanger::awaitMessage(socket);
 }
 
 void Server::sendMessage(const std::string& user, Message &&m) {
     Socket* socket = &connectedUsers[user];
-    sendMessage(socket, std::move(m));
-}
-
-void Server::sendMessage(Socket* socket, Message &&m) {
-    // Serialization
-    std::stringstream sstream;
-    try {
-        Serializer oa(sstream);
-        m.serialize(oa, 0);
-        std::cout << "SERIALIZE: " << sstream.str() ;
-    }
-    catch (boost::archive::archive_exception& e) {
-        throw std::runtime_error(e.what());
-    }
-
-    // Socket write
-    std::string s(sstream.str());
-    int length = s.length() + 1;
-    socket->write(&length, sizeof(length), 0);
-    socket->write(s.c_str(), length, 0);
-
-    if(m.getType() == MessageType::text)
-        std::cout << "\nMessage sent: " << m.getMessage() << std::endl;
-    else
-        std::cout << "\nSending file info: " << m.getFileWrapper().getPath().relative_path()<< std::endl;
+    MessageExchanger::sendMessage(socket, std::move(m));
 }
 
 void Server::sendChecksum(const std::string& user) {
@@ -310,132 +256,6 @@ void Server::synchronize(const std::string& user) {
     }
 }
 
-bool Server::receiveFile(const std::string& user) {
-    Folder f(user, user);
-    Socket* socket = &connectedUsers[user];
-
-    // Receive command and answer ACK
-    Message m = awaitMessage(user);
-    sendMessage(user, Message("ACK"));
-
-    // In case we're done receiving a series
-    if(m.getMessage().compare("END") == 0) return false;
-
-    // Errors handling
-    if(m.getMessage().compare("FS_ERR") == 0) throw std::runtime_error("receiveFile: File system error on client side");
-    if(m.getMessage().compare("ERR") == 0) throw std::runtime_error("receiveFile: Generic error on client side");
-
-    // Receive file info
-    FileWrapper fileInfo = awaitMessage(user, SIZE_MESSAGE_TEXT, MessageType::file).getFileWrapper();
-    sendMessage(user, Message("ACK"));
-
-    // Check if the received message was a Directory or a File
-    if(m.getMessage().compare("DIRECTORY") == 0 )
-        switch (fileInfo.getStatus()) {
-        case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
-            //f.deleteFile(fileInfo.getPath());
-        case FileStatus::created :
-            f.writeDirectory(fileInfo.getPath());
-            break;
-        case FileStatus::erased :
-            f.deleteFile(fileInfo.getPath());
-            break;
-        default:
-            break;
-        }
-    else if(m.getMessage().compare("FILE") == 0 ) {
-        switch (fileInfo.getStatus()) {
-            case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
-                f.deleteFile(fileInfo.getPath());
-            case FileStatus::created : {
-                std::cout << "Reading blocks from socket" << std::endl;
-                // Read chunks of data
-                int count_char = fileInfo.getSize();
-                int num = 0;
-                while (count_char > 0) {
-                    std::cout << "Remaining data: " << count_char << std::endl;
-                    num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
-                    std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
-                    int receivedSize = socket->read(buf.get(), num, 0);
-                    f.writeFile(fileInfo.getPath(), buf.get(), receivedSize);
-                    count_char -= receivedSize;
-                    //sendMessage(user, Message("ACK"));
-                }
-                break;
-            }
-            case FileStatus::erased :
-                f.deleteFile(fileInfo.getPath());
-                break;
-            default:
-                break;
-        }
-    }
-    else if (m.getMessage().compare("FILE_DEL") == 0) {
-        if(!fileInfo.getPath().empty())
-            f.deleteFile(fileInfo.getPath());
-    }
-
-    // Send ACK to indicate operation success
-    sendMessage(user, Message("ACK"));
-    return true;
-}
-
-void Server::sendFile(const std::string& user, const filesystem::path& path) {
-    Folder f(user, user);
-    filesystem::path filePath = f.getPath()/path;
-    Socket *socket = &connectedUsers[user];
-
-    // Sending command message
-    std::string command;
-    int size = 0;
-    if(filesystem::is_directory(filePath))
-        command = "DIRECTORY";
-    else if(filesystem::is_regular_file(filePath)) {
-        command = "FILE";
-        size = f.getFileSize(path);
-    }
-    else if(!filesystem::exists(filePath))
-        command = "FILE_DEL";
-    else { // in case of any error
-        sendMessage(user, Message("ERR"));
-        throw std::runtime_error("File not supported");
-    }
-    sendMessage(user, Message(std::move(command)));
-    Message m = awaitMessage(user); // waiting for ACK
-
-    // Sending File Info
-    FileWrapper fileInfo = FileWrapper(path, FileStatus::modified, size);//path, status, size file
-    sendMessage(user, Message(std::move(fileInfo)));
-    m = awaitMessage(user); // waiting fileInfo ACK
-
-    // if it's a file, also send the data
-    if(is_regular_file(filePath)){
-        filesystem::ifstream file; // file to send
-        file.open(filePath, std::ios::in | std::ios::binary);
-        int count_char = size; // remaining size to send
-        int num; // size of packet to write into the socket
-        while(count_char > 0){
-            // Init buffer
-            num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
-            std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
-
-            // Throw error if it can't read the file
-            if(!file.read(buf.get(), num)){
-                sendMessage(user, Message("FS_ERR"));
-                m = awaitMessage(user);
-                throw std::runtime_error("Impossible read file");
-            };
-
-            // Socket sending
-            socket->write(buf.get(), num, 0);
-            count_char -= num;
-        }
-        file.close();
-    }
-
-    m = awaitMessage(user); //waiting final ACK
-}
-
 void Server::downloadDirectory(const std::string& user) {
     Folder f(user, user);
     f.wipeFolder(); // remove all files present in the folder since we're receiving updated ones
@@ -443,7 +263,7 @@ void Server::downloadDirectory(const std::string& user) {
     std::cout << "Waiting directory from user " << user << std::endl;
 
     // Keep waiting for files
-    while(receiveFile(user)) {}
+    while(FileExchanger::receiveFile(&connectedUsers[user], &f)) {}
     sendMessage(user, Message("ACK"));
 }
 
@@ -452,7 +272,7 @@ void Server::uploadDirectory(const std::string& user) {
 
     // Send all files
     for(filesystem::path path: f.getContent())
-        sendFile(user, path);
+        FileExchanger::sendFile(&connectedUsers[user], &f, path, FileStatus::modified);
 
     // Signal end of file upload and await ACK
     sendMessage(user, Message("END"));

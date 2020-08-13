@@ -6,7 +6,7 @@
 #include <thread>
 #include <unordered_map>
 #include <string>
-#include <packets/FileStatus.h>
+#include <communication/FileWrapper.h>
 
 using namespace boost::filesystem;
 

@@ -15,7 +15,7 @@
 #include <condition_variable>
 
 #include "FileWatcher.h"
-#include <packets/Message.h>
+#include <communication/Message.h>
 #include <Socket.h>
 #include <Checksum.h>
 #include <Folder.h>
@@ -50,9 +50,7 @@ class Client{
 
     int contFileToSend = 0;
 
-    void inviaFile(path, FileStatus, bool); //ivia file al server in modalità asincrona o sincrona(conThread = false)
     void downloadDirectory(); //scarica il contenuto inviato dal server fino alla recezione del messagio END
-    bool riceviFile();
     //std::string readline(); //legge una riga da command line del client
     void sendMessage(Message&&);
     void sendCreateFileAsynch(std::string path_to_watch);

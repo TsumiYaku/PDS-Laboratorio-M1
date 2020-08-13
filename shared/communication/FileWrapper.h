@@ -8,10 +8,11 @@
 #include <string>
 #include <string.h>
 #include <iostream>
-#include <packets/FileStatus.h>
 
 using namespace boost;
 using namespace serialization;
+
+enum class FileStatus {created, modified, erased, nothing};
 
 class FileWrapper {
     friend class boost::serialization::access;
