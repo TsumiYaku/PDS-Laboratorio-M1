@@ -1,4 +1,6 @@
- #include "SimpleCrypt.h"
+#include "SimpleCrypt.h"
+
+char key[7] = {'A', 'W', 'C', 'K', 'L', 'Q', 'M'}; //Any chars will work
 
 std::string SimpleCrypt::encrypt(std::string toEncrypt) {
     std::string output = toEncrypt;
