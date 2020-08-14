@@ -148,7 +148,7 @@ void FileExchanger::sendFile(Socket *socket, Folder* f, const filesystem::path& 
     m = awaitMessage(socket); // waiting fileInfo ACK
 
     // if it's a file, also send the data
-    if(is_regular_file(filePath)){
+    if(is_regular_file(filePath) && status != FileStatus::erased){
         filesystem::ifstream file; // file to send
         file.open(filePath, std::ios::in | std::ios::binary);
         int count_char = size; // remaining size to send

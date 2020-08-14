@@ -75,9 +75,7 @@ void Server::run() {
                 Message m(MessageType::text);
                 // Check if socket has no errors or hasn't disconnected
                 try {
-                    std::cout << "AWAIT BEFORE " << std::endl;
                     m = awaitMessage(user);
-                    std::cout << "AWAIT AFTER " << std::endl;
                 }
                 catch (std::runtime_error& e) {
                     std::cout << e.what() << std::endl;
