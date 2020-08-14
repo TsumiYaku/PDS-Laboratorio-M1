@@ -72,7 +72,6 @@ bool FileExchanger::receiveFile(Socket *socket, Folder* f) {
     if(m.getMessage().compare("DIRECTORY") == 0 )
         switch (fileInfo.getStatus()) {
             case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
-                //f.deleteFile(fileInfo.getPath());
             case FileStatus::created :
                 f->writeDirectory(fileInfo.getPath());
                 break;
@@ -84,10 +83,11 @@ bool FileExchanger::receiveFile(Socket *socket, Folder* f) {
         }
     else if(m.getMessage().compare("FILE") == 0 ) {
         switch (fileInfo.getStatus()) {
-            case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
-                f->deleteFile(fileInfo.getPath());
+            case FileStatus::modified :
             case FileStatus::created : {
+                f->deleteFile(fileInfo.getPath()); // deletes file in any case just to be sure
                 std::cout << "Reading blocks from socket" << std::endl;
+                
                 // Read chunks of data
                 int count_char = fileInfo.getSize();
                 int num = 0;
