@@ -126,7 +126,7 @@ void Client::sendCreateFileAsynch(std::string path_to_watch){
         std::lock_guard<std::mutex> lg(muSend);
         sendMessageWithResponse("CREATE", "ACK");
         //inviaFile(path(path_to_watch), FileStatus::created, false);
-        FileExchanger::sendFile(&sock, directory, path(path_to_watch), FileStatus::create);
+        FileExchanger::sendFile(&sock, directory, path(path_to_watch), FileStatus::created);
     });
     create.detach();
 }
@@ -245,6 +245,7 @@ void Client::monitoraCartella(std::string folder){
                 cont_error++;
                 if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
                     delete directory;
+                    close();
                     exit(-2);
                 }
             }
