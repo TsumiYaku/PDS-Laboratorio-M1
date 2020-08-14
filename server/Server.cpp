@@ -271,8 +271,8 @@ void Server::uploadDirectory(const std::string& user) {
     Folder f(user, user);
 
     // Send all files
-    for(filesystem::path path_: f.getContent())
-        FileExchanger::sendFile(&connectedUsers[user], &f, f.removeFolderPath(path_.string()), FileStatus::modified);
+    for(filesystem::path path: f.getContent())
+        FileExchanger::sendFile(&connectedUsers[user], &f, path, FileStatus::modified);
 
     // Signal end of file upload and await ACK
     sendMessage(user, Message("END"));
