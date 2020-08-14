@@ -56,6 +56,10 @@ ssize_t Socket::read(char *buf, size_t len, int options) {
         std::cerr << "Error during socket reading: " << strerror(errno) << " | " << errno << std::endl;
         throw std::runtime_error("Error during socket reading string");
     }
+    if (res == 0) {
+        //std::cerr << "Error during socket reading: " << strerror(errno) << " | " << errno << std::endl;
+        throw std::runtime_error("Socket Closed");
+    }
     return res;
 }
 
@@ -65,6 +69,10 @@ ssize_t Socket::write(const char *buf, size_t len, int options) {
     if (res < 0) {
         std::cerr << "Error during data sending: " << strerror(errno) << " | " << errno << std::endl;
         throw std::runtime_error("Error during data sending");
+    }
+    if (res == 0) {
+        //std::cerr << "Error during socket reading: " << strerror(errno) << " | " << errno << std::endl;
+        throw std::runtime_error("Socket Closed");
     }
     return res;
 }
@@ -76,6 +84,10 @@ ssize_t Socket::write(int* value, size_t len, int options) {
         std::cerr << "Error during data sending: " << strerror(errno) << " | " << errno << std::endl;
         throw std::runtime_error("Error during data sending");
     }
+    if (res == 0) {
+        //std::cerr << "Error during socket reading: " << strerror(errno) << " | " << errno << std::endl;
+        throw std::runtime_error("Socket Closed");
+    }
     return res;
 }
 
@@ -85,6 +97,10 @@ ssize_t Socket::read(int* val, size_t len, int options) {
     if (res < 0) {
         std::cerr << "Error during socket reading: " << strerror(errno) << " | " << errno << std::endl;
         throw std::runtime_error("Error during socket reading integer");
+    }
+    if (res == 0) {
+        //std::cerr << "Error during socket reading: " << strerror(errno) << " | " << errno << std::endl;
+        throw std::runtime_error("Socket Closed");
     }
     return res;
 }

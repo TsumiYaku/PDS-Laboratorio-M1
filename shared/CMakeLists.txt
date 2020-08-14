@@ -3,14 +3,13 @@ add_library(shared
         Checksum.cpp
         Socket.h
         Socket.cpp
-        packets/Message.cpp
-        packets/Message.h
-        packets/FileWrapper.cpp
-        packets/FileWrapper.h
-        packets/FileStatus.h
+        communication/Message.cpp
+        communication/Message.h
+        communication/FileWrapper.cpp
+        communication/FileWrapper.h
         SimpleCrypt.h
         SimpleCrypt.cpp
         Folder.cpp
-        Folder.h)
+        Folder.h communication/Exchanger.cpp communication/Exchanger.h)
 
 target_include_directories(shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
