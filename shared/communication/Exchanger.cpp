@@ -75,6 +75,7 @@ bool FileExchanger::receiveFile(Socket *socket, Folder* f) {
         switch (fileInfo.getStatus()) {
             case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
                 //f.deleteFile(fileInfo.getPath());
+                break;
             case FileStatus::created :
                 f->writeDirectory(fileInfo.getPath());
                 break;
@@ -142,13 +143,14 @@ void FileExchanger::sendFile(Socket *socket, Folder* f, const filesystem::path& 
     sendMessage(socket, Message(std::move(command)));
     Message m = awaitMessage(socket); // waiting for ACK
 
+    std::cout << "SENDING " << filePath.string() << " " << size <<  std::endl;
     // Sending File Info
     FileWrapper fileInfo = FileWrapper(path, status, size);//path, status, size file
     sendMessage(socket, Message(std::move(fileInfo)));
     m = awaitMessage(socket); // waiting fileInfo ACK
 
     // if it's a file, also send the data
-    if(is_regular_file(filePath) && status != FileStatus::erased){
+    if(is_regular_file(filePath) && (command.compare("FILE_DEL") != 0)){
         filesystem::ifstream file; // file to send
         file.open(filePath, std::ios::in | std::ios::binary);
         int count_char = size; // remaining size to send

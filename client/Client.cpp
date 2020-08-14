@@ -45,7 +45,6 @@ Client::Client(std::string address, int port): address(address), port(port){
             }
         }
     }
-
 }
 
 void Client::sendMessage(Message &&m) {
@@ -126,7 +125,7 @@ void Client::sendCreateFileAsynch(std::string path_to_watch){
         std::lock_guard<std::mutex> lg(muSend);
         sendMessageWithResponse("CREATE", "ACK");
         //inviaFile(path(path_to_watch), FileStatus::created, false);
-        FileExchanger::sendFile(&sock, directory, path(path_to_watch), FileStatus::created);
+        FileExchanger::sendFile(&sock, directory, path(directory->removeFolderPath(path_to_watch)), FileStatus::created);
     });
     create.detach();
 }
@@ -135,7 +134,7 @@ void Client::sendModifyFileAsynch(std::string path_to_watch){
     std::thread modify([this, path_to_watch]()->void{
         std::lock_guard<std::mutex> lg(muSend);
         sendMessageWithResponse("MODIFY", "ACK"); //invio richiesta modifica   
-        FileExchanger::sendFile(&sock, directory, path(path_to_watch), FileStatus::modified);
+        FileExchanger::sendFile(&sock, directory, path(directory->removeFolderPath(path_to_watch)), FileStatus::modified);
     });
     modify.detach();
 }
@@ -144,7 +143,7 @@ void Client::sendEraseFileAsynch(std::string path_to_watch){
     std::thread erase([this, path_to_watch]()->void{
         std::lock_guard<std::mutex> lg(muSend);
         sendMessageWithResponse("ERASE", "ACK");//invio richiesta cancellazione
-        FileExchanger::sendFile(&sock, directory, path(path_to_watch), FileStatus::erased);
+        FileExchanger::sendFile(&sock, directory, path(directory->removeFolderPath(path_to_watch)), FileStatus::erased);
     });
     erase.detach();
 }
@@ -187,7 +186,7 @@ void Client::monitoraCartella(std::string folder){
 
     directory = new Folder(user, folder);
     //mi metto in ascolto su un thread separato e attendo una modifica
-    FileWatcher fw{folder, std::chrono::milliseconds(2000)};
+    FileWatcher fw{folder, std::chrono::milliseconds(3000)};
     fw.first_syncro();
 
     std::thread start([this, &folder, &fw] () {
@@ -305,10 +304,10 @@ void Client::monitoraCartella(std::string folder){
                 //invio solo i file con checksum diverso
                 while(true){
                     try{
-                        for(filesystem::path path: directory->getContent()){ 
-                            path = directory->getPath()/path;
-                            std::cout  << path << std::endl;
-                            FileExchanger::sendFile(&sock, directory, path, FileStatus::modified);
+                        for(filesystem::path path_: directory->getContent()){ 
+                            path_ = directory->getPath()/path_;
+                            std::cout  << path_ << std::endl;
+                            FileExchanger::sendFile(&sock, directory, filesystem::path(directory->removeFolderPath(path_.string())), FileStatus::modified);
                         }
                         sendMessageWithResponse("END", "ACK");
                         break;

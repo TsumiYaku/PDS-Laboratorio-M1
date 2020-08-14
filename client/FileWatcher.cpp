@@ -27,11 +27,11 @@ void FileWatcher::start(const std::function<void (std::string, FileStatus, bool,
                     // File creation
                     if(!contains(file.path().string())) {
                         paths[file.path().string()] = current_file_last_write_time;
-                        std::cout <<"create:" << file.path().string() << " " << current_file_last_write_time << std::endl;
+                        //std::cout <<"create:" << file.path().string() << " " << current_file_last_write_time << std::endl;
                         action(file.path().string(), FileStatus::created, getLocked(), getFirstSyncro());
                     // File modification
                     } else {
-                        std::cout <<"modify:" << file.path().string() << " " << current_file_last_write_time << std::endl;
+                        //std::cout <<"modify:" << file.path().string() << " " << current_file_last_write_time << std::endl;
                         if(paths[file.path().string()] != current_file_last_write_time) {
                             paths[file.path().string()] = current_file_last_write_time;
                             action(file.path().string(), FileStatus::modified, getLocked(), getFirstSyncro());
