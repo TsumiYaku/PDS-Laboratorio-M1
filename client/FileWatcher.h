@@ -39,7 +39,7 @@ public:
          }
      }
 
-     void start(const std::function<void (std::string, FileStatus, bool, bool)> &action);
+     void start(const std::function<void (std::string, FileStatus, bool)> &action);
      
      //LOCK
      //il filewatcher ignora le modifiche (richiama action ma non verranno inserite nella coda di richiesta del Client)

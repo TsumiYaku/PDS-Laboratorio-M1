@@ -11,6 +11,7 @@ void log(std::string msg){
 Client::Client(std::string address, int port): address(address), port(port){
     cont_error = 0;
     cont_nothing = 0;
+
     while(true){
         try{
             struct sockaddr_in sockaddrIn;
@@ -183,14 +184,14 @@ void Client::monitoraCartella(std::string folder){
     fw.first_syncro();//se si è in fase di syncro aggiungo richieste alla coda delle richieste che verranno smistate al termine della prima sincronizzazione
 
     std::thread start([this, &folder, &fw] () {
-        fw.start([this, &fw](std::string path_to_watch, FileStatus status, bool locked, bool first_syncro) -> void {
+        fw.start([this, &fw](std::string path_to_watch, FileStatus status, bool first_syncro) -> void {
             std::lock_guard<std::mutex> lg(mu);
             try{
                 switch(status) {
                     case FileStatus::created:{
                             log("Created: " + path_to_watch);
                             cont_nothing = 0;
-                            if(!locked && (exists(path(path_to_watch))))
+                            if(!fw.getLocked() && (exists(path(path_to_watch))))
                                request.insert(std::make_pair(path_to_watch, status)); //carico la richiesta di creazione nella coda delle richieste
                         //}
                         break;
@@ -199,7 +200,7 @@ void Client::monitoraCartella(std::string folder){
                         //dico al server che è stato modificato un file e lo invio al server
                         log("Modified: " + path_to_watch); 
                         cont_nothing = 0;
-                        if(!locked && (request.find(path_to_watch) == request.end()) && (exists(path(path_to_watch))) ){ 
+                        if(!fw.getLocked() && (request.find(path_to_watch) == request.end()) && (exists(path(path_to_watch))) ){ 
                             request.insert(std::make_pair(path_to_watch, status)); //se il file non è stato creato prima e non c'è un lock
                         }
                         break;
@@ -209,7 +210,8 @@ void Client::monitoraCartella(std::string folder){
                         log("Erased: " + path_to_watch);
 
                         cont_nothing = 0; //non ho inviato le richieste ancora
-                        request.insert(std::make_pair(path_to_watch, status));
+                        if(!fw.getLocked())
+                           request.insert(std::make_pair(path_to_watch, status));
                         break;
                     }
                     case FileStatus::nothing:{//invio le richieste accodate
@@ -278,11 +280,12 @@ void Client::monitoraCartella(std::string folder){
                 sendMessage(std::move(m));
             }
             else if(checksumServer != 0 && checksumClient==0){ //client non ha cartella e la scarica dal server
-               
-                fw.freeze();
+                //download_file_first_Syncro = true;
+                fw.lock();
                 sendMessageWithResponse("DOWNLOAD", "ACK");
                 downloadDirectory(); //scarico contenuto del server
-                fw.restart();
+                request.clear(); //per sicurezza se il lock non è andato a buon fine
+                fw.unlock();
             }
             else{ //la cartella esiste e quindi la invio al server  
                 //invio richiesta update directory server (fino ad ottenere response ACK)

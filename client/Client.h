@@ -46,7 +46,6 @@ class Client{
     int port;
     int cont_nothing = 0;
 
-
     
     //comunication
     void sendMessage(Message&&); //invia un messaggio al server

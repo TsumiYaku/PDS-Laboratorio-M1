@@ -83,8 +83,7 @@ bool FileExchanger::receiveFile(Socket *socket, Folder* f) {
         }
     else if(m.getMessage().compare("FILE") == 0 ) {
         switch (fileInfo.getStatus()) {
-            case FileStatus::modified :
-            case FileStatus::created : {
+            case FileStatus::modified :{
                 f->deleteFile(fileInfo.getPath()); // deletes file in any case just to be sure
                 std::cout << "Reading blocks from socket" << std::endl;
                 
@@ -98,8 +97,30 @@ bool FileExchanger::receiveFile(Socket *socket, Folder* f) {
                     int receivedSize = socket->read(buf.get(), num, 0);
                     f->writeFile(fileInfo.getPath(), buf.get(), receivedSize);
                     count_char -= receivedSize;
-                    //sendMessage(user, Message("ACK"));
                 }
+                break;
+            }
+            case FileStatus::created : {
+                filesystem::path file = f->getPath()/fileInfo.getPath();
+                
+                if(!filesystem::exists(file)){
+                    f->deleteFile(fileInfo.getPath()); // deletes file in any case just to be sure
+                    std::cout << "Reading blocks from socket" << std::endl;
+                }
+
+                // Read chunks of data
+                int count_char = fileInfo.getSize();
+                int num = 0;
+                while (count_char > 0) {
+                    std::cout << "Remaining data: " << count_char << std::endl;
+                    num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
+                    std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
+                    int receivedSize = socket->read(buf.get(), num, 0);
+                    if(!filesystem::exists(file))
+                       f->writeFile(fileInfo.getPath(), buf.get(), receivedSize);
+                    count_char -= receivedSize;
+                }
+                
                 break;
             }
             case FileStatus::erased :

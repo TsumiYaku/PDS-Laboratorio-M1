@@ -2,7 +2,7 @@
 #include <iostream>
 
 // Monitora "path_to_watch" . in caso di modifiche alla cartella allora richiama la funzione action
-void FileWatcher::start(const std::function<void (std::string, FileStatus, bool, bool)> &action) {
+void FileWatcher::start(const std::function<void (std::string, FileStatus, bool)> &action) {
  while(running) {
      try{
         std::this_thread::sleep_for(delay);
@@ -11,7 +11,8 @@ void FileWatcher::start(const std::function<void (std::string, FileStatus, bool,
         auto it = paths.begin();
         while (it != this->paths.end()) {
             if (!exists(it->first)) {
-                action(it->first, FileStatus::erased, getLocked(), getFirstSyncro()); 
+                if(getLocked() == false)
+                   action(it->first, FileStatus::erased, getFirstSyncro()); 
                 it = paths.erase(it);
             }
             else {
@@ -26,24 +27,25 @@ void FileWatcher::start(const std::function<void (std::string, FileStatus, bool,
                 // File creation
                 if(!contains(file.path().string())) {
                     paths[file.path().string()] = current_file_last_write_time;
-                    action(file.path().string(), FileStatus::created, getLocked(), getFirstSyncro());//path file, status, se il fileWather è in lock e se è in fase di prima syncro
+                    if(getLocked() == false)
+                     action(file.path().string(), FileStatus::created, getFirstSyncro());//path file, status, se il fileWather è in lock e se è in fase di prima syncro
                 // File modification
                 } else {
                     if(paths[file.path().string()] != current_file_last_write_time) {
                         paths[file.path().string()] = current_file_last_write_time;
-                        action(file.path().string(), FileStatus::modified, getLocked(), getFirstSyncro());
+                        if(getLocked() == false)
+                            action(file.path().string(), FileStatus::modified, getFirstSyncro());
                     }else
                     {
-                        action(file.path().string(), FileStatus::nothing, getLocked(), getFirstSyncro());
+                        if(getLocked() == false) 
+                            action(file.path().string(), FileStatus::nothing, getFirstSyncro());
                     }
                 }
-
             }
             else{
-                action("", FileStatus::nothing, getLocked(), getFirstSyncro());
+                action("", FileStatus::nothing, getFirstSyncro());
             }
         }
-        
      }catch(...){continue;};
    }
 }
