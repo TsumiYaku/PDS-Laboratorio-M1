@@ -29,6 +29,7 @@ Client::Client(std::string address, int port): address(address), port(port){
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
                 delete directory;
+                close();
                 exit(-3);
             }
         }
@@ -39,6 +40,7 @@ Client::Client(std::string address, int port): address(address), port(port){
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
                 delete directory;
+                close();
                 exit(-3);
             }
         }
@@ -102,6 +104,7 @@ bool Client::doLogin(std::string user, std::string password){
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
                 delete directory;
+                close();
                 return false;
             }
         }
@@ -123,7 +126,7 @@ void Client::sendCreateFileAsynch(std::string path_to_watch){
         std::lock_guard<std::mutex> lg(muSend);
         sendMessageWithResponse("CREATE", "ACK");
         //inviaFile(path(path_to_watch), FileStatus::created, false);
-        FileExchanger::sendFile(&sock, "prova")
+        FileExchanger::sendFile(&sock, directory, path(path_to_watch), FileStatus::modified);
     });
     create.detach();
 }
@@ -252,6 +255,7 @@ void Client::monitoraCartella(std::string folder){
                 cont_error++;
                 if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
                     delete directory;
+                    close();
                     exit(-2);
                 }
             }
@@ -324,6 +328,7 @@ void Client::monitoraCartella(std::string folder){
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
                 delete directory;
+                close();
                 exit(-1);
             }
         }
@@ -334,12 +339,12 @@ void Client::monitoraCartella(std::string folder){
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
                 delete directory;
+                close();
                 exit(-1);
             }
         }
     };
 
-    
     //syncro.join();
     start.join();
 }
