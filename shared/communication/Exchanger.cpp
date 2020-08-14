@@ -66,75 +66,71 @@ bool FileExchanger::receiveFile(Socket *socket, Folder* f) {
 
     // Receive file info
     FileWrapper fileInfo = awaitMessage(socket, SIZE_MESSAGE_TEXT, MessageType::file).getFileWrapper();
-    sendMessage(socket, Message("ACK"));
-
-    // Check if the received message was a Directory or a File
-    if(m.getMessage().compare("DIRECTORY") == 0 )
-        switch (fileInfo.getStatus()) {
-            case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
-            case FileStatus::created :
-                f->writeDirectory(fileInfo.getPath());
-                break;
-            case FileStatus::erased :
-                f->deleteFile(fileInfo.getPath());
-                break;
-            default:
-                break;
-        }
-    else if(m.getMessage().compare("FILE") == 0 ) {
-        switch (fileInfo.getStatus()) {
-            case FileStatus::modified :{
-                f->deleteFile(fileInfo.getPath()); // deletes file in any case just to be sure
-                std::cout << "Reading blocks from socket" << std::endl;
-                
-                // Read chunks of data
-                int count_char = fileInfo.getSize();
-                int num = 0;
-                while (count_char > 0) {
-                    std::cout << "Remaining data: " << count_char << std::endl;
-                    num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
-                    std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
-                    int receivedSize = socket->read(buf.get(), num, 0);
-                    f->writeFile(fileInfo.getPath(), buf.get(), receivedSize);
-                    count_char -= receivedSize;
-                }
-                break;
+    filesystem::path file = f->getPath()/fileInfo.getPath();
+    if(filesystem::exists(file) && (fileInfo.getStatus() == FileStatus::created))
+       sendMessage(socket, Message("PRESENT")); 
+    else{
+        sendMessage(socket, Message("ACK"));
+    
+        // Check if the received message was a Directory or a File
+        if(m.getMessage().compare("DIRECTORY") == 0 )
+            switch (fileInfo.getStatus()) {
+                case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
+                case FileStatus::created :
+                    f->writeDirectory(fileInfo.getPath());
+                    break;
+                case FileStatus::erased :
+                    f->deleteFile(fileInfo.getPath());
+                    break;
+                default:
+                    break;
             }
-            case FileStatus::created : {
-                filesystem::path file = f->getPath()/fileInfo.getPath();
-                
-                if(!filesystem::exists(file)){
+        else if(m.getMessage().compare("FILE") == 0 ) {
+            switch (fileInfo.getStatus()) {
+                case FileStatus::modified :{
                     f->deleteFile(fileInfo.getPath()); // deletes file in any case just to be sure
                     std::cout << "Reading blocks from socket" << std::endl;
+                    
+                    // Read chunks of data
+                    int count_char = fileInfo.getSize();
+                    int num = 0;
+                    while (count_char > 0) {
+                        std::cout << "Remaining data: " << count_char << std::endl;
+                        num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
+                        std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
+                        int receivedSize = socket->read(buf.get(), num, 0);
+                        f->writeFile(fileInfo.getPath(), buf.get(), receivedSize);
+                        count_char -= receivedSize;
+                    }
+                    break;
                 }
-
-                // Read chunks of data
-                int count_char = fileInfo.getSize();
-                int num = 0;
-                while (count_char > 0) {
-                    std::cout << "Remaining data: " << count_char << std::endl;
-                    num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
-                    std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
-                    int receivedSize = socket->read(buf.get(), num, 0);
-                    if(!filesystem::exists(file))
-                       f->writeFile(fileInfo.getPath(), buf.get(), receivedSize);
-                    count_char -= receivedSize;
+                case FileStatus::created : {
+                    // Read chunks of data
+                    int count_char = fileInfo.getSize();
+                    int num = 0;
+                    while (count_char > 0) {
+                        std::cout << "Remaining data: " << count_char << std::endl;
+                        num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
+                        std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
+                        int receivedSize = socket->read(buf.get(), num, 0);
+                        f->writeFile(fileInfo.getPath(), buf.get(), receivedSize);
+                        count_char -= receivedSize;
+                    }
+                    
+                    break;
                 }
-                
-                break;
+                case FileStatus::erased :
+                    f->deleteFile(fileInfo.getPath());
+                    break;
+                default:
+                    break;
             }
-            case FileStatus::erased :
+        }
+        else if (m.getMessage().compare("FILE_DEL") == 0) {
+            if(!fileInfo.getPath().empty())
                 f->deleteFile(fileInfo.getPath());
-                break;
-            default:
-                break;
         }
     }
-    else if (m.getMessage().compare("FILE_DEL") == 0) {
-        if(!fileInfo.getPath().empty())
-            f->deleteFile(fileInfo.getPath());
-    }
-
     // Send ACK to indicate operation success
     sendMessage(socket, Message("ACK"));
     return true;
@@ -164,31 +160,34 @@ void FileExchanger::sendFile(Socket *socket, Folder* f, const filesystem::path& 
     // Sending File Info
     FileWrapper fileInfo = FileWrapper(path, status, size);//path, status, size file
     sendMessage(socket, Message(std::move(fileInfo)));
-    m = awaitMessage(socket); // waiting fileInfo ACK
+    m = awaitMessage(socket);
 
-    // if it's a file, also send the data
-    if(is_regular_file(filePath) && (command.compare("FILE_DEL") != 0)){
-        filesystem::ifstream file; // file to send
-        file.open(filePath, std::ios::in | std::ios::binary);
-        int count_char = size; // remaining size to send
-        int num; // size of packet to write into the socket
-        while(count_char > 0){
-            // Init buffer
-            num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
-            std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
+    if(m.getMessage().compare("ACK") == 0){
 
-            // Throw error if it can't read the file
-            if(!file.read(buf.get(), num)){
-                sendMessage(socket, Message("FS_ERR"));
-                m = awaitMessage(socket);
-                throw std::runtime_error("Impossible read file");
-            };
+        // if it's a file, also send the data
+        if(is_regular_file(filePath) && (command.compare("FILE_DEL") != 0)){
+            filesystem::ifstream file; // file to send
+            file.open(filePath, std::ios::in | std::ios::binary);
+            int count_char = size; // remaining size to send
+            int num; // size of packet to write into the socket
+            while(count_char > 0){
+                // Init buffer
+                num = count_char > SIZE_MESSAGE_TEXT ? SIZE_MESSAGE_TEXT : count_char;
+                std::unique_ptr<char[]> buf = std::make_unique<char[]>(num);
 
-            // Socket sending
-            socket->write(buf.get(), num, 0);
-            count_char -= num;
+                // Throw error if it can't read the file
+                if(!file.read(buf.get(), num)){
+                    sendMessage(socket, Message("FS_ERR"));
+                    m = awaitMessage(socket);
+                    throw std::runtime_error("Impossible read file");
+                };
+
+                // Socket sending
+                socket->write(buf.get(), num, 0);
+                count_char -= num;
+            }
+            file.close();
         }
-        file.close();
     }
 
     m = awaitMessage(socket); //waiting final ACK

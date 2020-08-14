@@ -122,7 +122,8 @@ bool Client::doLogin(std::string user, std::string password){
 void Client::sendCreateFileAsynch(std::string path_to_watch){
     std::thread create([this, path_to_watch]()->void{
         std::lock_guard<std::mutex> lg(muSend);
-        sendMessageWithResponse("CREATE", "ACK"); //invio richiesta creazione
+        Message m = Message(MessageType::text);
+        sendMessageWithResponse("CREATE", "ACK");
         FileExchanger::sendFile(&sock, directory, path(directory->removeFolderPath(path_to_watch)), FileStatus::created);
     });
     create.detach();
@@ -281,11 +282,10 @@ void Client::monitoraCartella(std::string folder){
             }
             else if(checksumServer != 0 && checksumClient==0){ //client non ha cartella e la scarica dal server
                 //download_file_first_Syncro = true;
-                fw.lock();
+                fw.freeze();
                 sendMessageWithResponse("DOWNLOAD", "ACK");
                 downloadDirectory(); //scarico contenuto del server
-                request.clear(); //per sicurezza se il lock non è andato a buon fine
-                fw.unlock();
+                fw.restart();
             }
             else{ //la cartella esiste e quindi la invio al server  
                 //invio richiesta update directory server (fino ad ottenere response ACK)
