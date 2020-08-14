@@ -43,7 +43,6 @@ public:
             Serializer oa(s);
             file.serialize(oa, 0);
             std::string tmp = s.str();
-            //this->message = tmp;
             ar << BOOST_SERIALIZATION_NVP(tmp);
         }
         else{

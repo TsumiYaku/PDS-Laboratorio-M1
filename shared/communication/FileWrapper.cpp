@@ -8,13 +8,13 @@ using namespace serialization;
 
 FileWrapper::FileWrapper()
 {
-    //data = nullptr;
+
 }
 
-FileWrapper::FileWrapper(filesystem::path filePath, /*char *data,*/ FileStatus status, int len):
-    filePath(filePath),/* data(data),*/ status(status), len(len)
+FileWrapper::FileWrapper(filesystem::path filePath, FileStatus status, int len):
+    filePath(filePath), status(status), len(len)
 {
-    //len = strlen(data);
+
 }
 
 FileWrapper::FileWrapper(FileWrapper &&other) {
@@ -47,7 +47,6 @@ int FileWrapper::getSize(){
 
 void FileWrapper::print(){
     std::cout <<"PATH: "<< filePath.relative_path().string() << std::endl;
-    //std::cout <<"DATA:" << data << std::endl;
     std::cout <<"SIZE:" << len << std::endl;
 }
 

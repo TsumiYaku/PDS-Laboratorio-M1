@@ -17,16 +17,15 @@ Message MessageExchanger::awaitMessage(Socket *socket, int msg_size, MessageType
         sstream << buf.get();
         Deserializer ia(sstream);
         m.unserialize(ia, 0);
-        std::cout <<"DESERIALIZE: " << sstream.str() << std::endl;
     }
     catch (boost::archive::archive_exception& e) {
         throw std::runtime_error(e.what());
     }
 
     if(m.getType() == MessageType::text)
-        std::cout << "\nMessage received: " << m.getMessage() << std::endl;
+        std::cout << "Message received: " << m.getMessage() << std::endl;
     else
-        std::cout << "\nMessage received" << std::endl;
+        std::cout << "Message received" << std::endl;
     return m;
 }
 
@@ -36,7 +35,6 @@ void MessageExchanger::sendMessage(Socket* socket, Message &&m) {
     try {
         Serializer oa(sstream);
         m.serialize(oa, 0);
-        std::cout << "SERIALIZE: " << sstream.str() ;
     }
     catch (boost::archive::archive_exception& e) {
         throw std::runtime_error(e.what());
@@ -49,9 +47,9 @@ void MessageExchanger::sendMessage(Socket* socket, Message &&m) {
     socket->write(s.c_str(), length, 0);
 
     if(m.getType() == MessageType::text)
-        std::cout << "\nMessage sent: " << m.getMessage() << std::endl;
+        std::cout << "Message sent: " << m.getMessage() << std::endl;
     else
-        std::cout << "\nSending file info: " << m.getFileWrapper().getPath().relative_path()<< std::endl;
+        std::cout << "Sending file info: " << m.getFileWrapper().getPath().relative_path()<< std::endl;
 }
 
 bool FileExchanger::receiveFile(Socket *socket, Folder* f) {
@@ -142,7 +140,6 @@ void FileExchanger::sendFile(Socket *socket, Folder* f, const filesystem::path& 
     sendMessage(socket, Message(std::move(command)));
     Message m = awaitMessage(socket); // waiting for ACK
 
-    std::cout << "SENDING " << filePath.string() << " " << size <<  std::endl;
     // Sending File Info
     FileWrapper fileInfo = FileWrapper(path, status, size);//path, status, size file
     sendMessage(socket, Message(std::move(fileInfo)));

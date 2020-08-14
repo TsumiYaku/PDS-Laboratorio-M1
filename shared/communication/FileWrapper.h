@@ -18,13 +18,12 @@ class FileWrapper {
     friend class boost::serialization::access;
     
     filesystem::path filePath;
-    //char* data;
     int len;
     FileStatus status;
     
 public:
     FileWrapper();
-    FileWrapper(filesystem::path filePath, FileStatus status, int len);
+    FileWrapper(filesystem::path filePath, FileStatus status, int len);//contiene info del file/directory:path relativo, status, size
     FileWrapper(FileWrapper&&);
     FileWrapper& operator=(FileWrapper&&) noexcept ;
 
@@ -47,7 +46,6 @@ public:
             case FileStatus::erased: ar << 2; break;
         }
         ar << len;
-        //ar & serialization::make_array<char>(data, len);
     }
 
     template<class Archive>
@@ -63,7 +61,5 @@ public:
             case 2: status = FileStatus::erased; break;
         }
         ar >> len;
-        //data = new char[len];
-        //ar & serialization::make_array<char>(data, len);
     }
 };

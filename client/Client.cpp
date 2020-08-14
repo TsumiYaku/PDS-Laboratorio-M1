@@ -11,10 +11,8 @@ void log(std::string msg){
 Client::Client(std::string address, int port): address(address), port(port){
     cont_error = 0;
     cont_nothing = 0;
-    before_first_synch = true;
     while(true){
         try{
-            prec_status = FileStatus::nothing;
             struct sockaddr_in sockaddrIn;
             sockaddrIn.sin_port = ntohs(port);
             sockaddrIn.sin_family = AF_INET;
@@ -23,8 +21,8 @@ Client::Client(std::string address, int port): address(address), port(port){
             sock.connect(&sockaddrIn, sizeof(sockaddrIn));
             break;
         }catch(std::runtime_error& e){
-            std::cout << e.what() << std::endl;
-            std::cout << "TRY TO REPAIR..." << std::endl;
+            log(e.what());
+            log("TRY TO REPAIR...");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -34,8 +32,8 @@ Client::Client(std::string address, int port): address(address), port(port){
             }
         }
         catch(boost::filesystem::filesystem_error& e){
-            std::cout << e.what() << std::endl;
-            std::cout << "TRY TO REPAIR..." << std::endl;
+            log(e.what());
+            log("TRY TO REPAIR...");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -75,7 +73,7 @@ void Client::close(){
 }
 
 Client::~Client(){
-    std::cout <<"Client diconnetted..." << std::endl;
+    log("Client disconnession...");
     delete directory;
     close();
 }
@@ -97,8 +95,8 @@ bool Client::doLogin(std::string user, std::string password){
             return false; //login non effettuato
         }
         catch(std::runtime_error& e){
-            std::cout << e.what() << std::endl;
-            std::cout << "TRY TO REPAIR..." << std::endl;
+            log(e.what());
+            log("TRY TO REPAIR...");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -108,12 +106,12 @@ bool Client::doLogin(std::string user, std::string password){
             }
         }
         catch(boost::filesystem::filesystem_error& e){
-            std::cout << e.what() << std::endl;
-            std::cout << "TRY TO REPAIR..." << std::endl;
+            log("TRY TO REPAIR...");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
                 delete directory;
+                close();
                 return false;
             }
         }
@@ -123,8 +121,7 @@ bool Client::doLogin(std::string user, std::string password){
 void Client::sendCreateFileAsynch(std::string path_to_watch){
     std::thread create([this, path_to_watch]()->void{
         std::lock_guard<std::mutex> lg(muSend);
-        sendMessageWithResponse("CREATE", "ACK");
-        //inviaFile(path(path_to_watch), FileStatus::created, false);
+        sendMessageWithResponse("CREATE", "ACK"); //invio richiesta creazione
         FileExchanger::sendFile(&sock, directory, path(directory->removeFolderPath(path_to_watch)), FileStatus::created);
     });
     create.detach();
@@ -148,46 +145,42 @@ void Client::sendEraseFileAsynch(std::string path_to_watch){
     erase.detach();
 }
 
-
-void Client::sendWrapperAllRequest(FileWatcher& fw, bool first_syncro){//wrapper invio le richieste
+//wrapper invio richieste client.
+void Client::sendWrapperAllRequest(FileWatcher& fw, bool first_syncro){
     std::lock_guard<std::mutex> lg(mu2);
-    //std::cout << "NOT EMPTY" << std::endl;
     sendAllRequest(fw);
-
-    //while(!request.empty()) {cv_request.wait(lg);} //attendo che sia vuota la mappa
 }
 
-void Client::sendAllRequest(FileWatcher& fw, bool first_syncro){//scandisco la coda delle richieste e le invio al server che si occuperà di smistarle
-    //std::lock_guard<std::mutex> lg(mu2);
-    //std::cout << "LISTA" << std::endl;
+//scandisco la coda delle richieste e le invio al server che si occuperà di smistarle
+//sblocca il filewatcer se non si è in fase di prima sincronizzazione
+void Client::sendAllRequest(FileWatcher& fw, bool first_syncro){
     for(std::pair<std::string, FileStatus> t : request){
          switch(t.second){
              case FileStatus::created:
-                 //std::cout << t.first << " create" << std::endl;
                  sendCreateFileAsynch(t.first);
                 break;
              case FileStatus::modified:
-                //std::cout << t.first << " modify" << std::endl;
                 sendModifyFileAsynch(t.first);
                 break;
              case FileStatus::erased:
-                //std::cout << t.first << " erase" << std::endl;
                 sendEraseFileAsynch(t.first);
                 break;
              default:break;
          }
     }
     request.clear();//pulisco la coda delle richieste
-    if(!first_syncro) fw.restart();//filewatcher può ripartire a caricare le richieste fino a che non ci sono richieste
-    //cv_request.notify_all();
+    if(!first_syncro) 
+         fw.restart();//filewatcher può ripartire a caricare le richieste fino a che non si è in stato di nothing(nessuna modifica della cartella da monitorare)
+   
 }
 
 void Client::monitoraCartella(std::string folder){
 
-    directory = new Folder(user, folder);
-    //mi metto in ascolto su un thread separato e attendo una modifica
+    directory = new Folder(user, folder);//directory da monitorare
+    
     FileWatcher fw{folder, std::chrono::milliseconds(TIME_MONITORING)};
-    fw.first_syncro();
+
+    fw.first_syncro();//se si è in fase di syncro aggiungo richieste alla coda delle richieste che verranno smistate al termine della prima sincronizzazione
 
     std::thread start([this, &folder, &fw] () {
         fw.start([this, &fw](std::string path_to_watch, FileStatus status, bool locked, bool first_syncro) -> void {
@@ -195,16 +188,16 @@ void Client::monitoraCartella(std::string folder){
             try{
                 switch(status) {
                     case FileStatus::created:{
-                            std::cout << "Created: " << path_to_watch << '\n';
+                            log("Created: " + path_to_watch);
                             cont_nothing = 0;
                             if(!locked && (exists(path(path_to_watch))))
-                            request.insert(std::make_pair(path_to_watch, status)); //carico la richiesta di creazione nella coda delle richieste
+                               request.insert(std::make_pair(path_to_watch, status)); //carico la richiesta di creazione nella coda delle richieste
                         //}
                         break;
                     }
                     case FileStatus::modified:{
                         //dico al server che è stato modificato un file e lo invio al server
-                        std::cout << "Modified: " << path_to_watch << '\n'; 
+                        log("Modified: " + path_to_watch); 
                         cont_nothing = 0;
                         if(!locked && (request.find(path_to_watch) == request.end()) && (exists(path(path_to_watch))) ){ 
                             request.insert(std::make_pair(path_to_watch, status)); //se il file non è stato creato prima e non c'è un lock
@@ -213,19 +206,18 @@ void Client::monitoraCartella(std::string folder){
                     }
                     case FileStatus::erased:{
                         //dico al server che è stato modificato un file e lo invio al server
-                        std::cout << "Erased: " << path_to_watch << '\n';
-                        //std::cout << first_syncro << " " << locked <<std::endl;
+                        log("Erased: " + path_to_watch);
+
                         cont_nothing = 0; //non ho inviato le richieste ancora
                         request.insert(std::make_pair(path_to_watch, status));
                         break;
                     }
                     case FileStatus::nothing:{//invio le richieste accodate
                         if(!first_syncro){
-                            fw.freeze();
-                            std::cout << "NOTHING" << std::endl;
+                            fw.freeze(); //"blocco" il filewatcher
                             if(!request.empty()){
                                 if(cont_nothing == 0){ 
-                                  sendWrapperAllRequest(fw); //restart in sendAllRequest. Invio le richieste e intanto rendo il fileWatcer frizzato 
+                                  sendWrapperAllRequest(fw); //smisto le richieste al server 
                                   cont_nothing++;
                                 }
                             }else{
@@ -238,8 +230,8 @@ void Client::monitoraCartella(std::string folder){
                     default: break;
                 }
             }catch(std::runtime_error& e){
-                std::cout << e.what() << std::endl;
-                std::cout << "TRY TO REPAIR.." << std::endl;
+                log(e.what());
+                log("TRY TO REPAIR..");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 cont_error++;
                 if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -249,8 +241,8 @@ void Client::monitoraCartella(std::string folder){
                 }
             }
             catch(boost::filesystem::filesystem_error& e){
-                std::cout << e.what() << std::endl;
-                std::cout << "TRY TO REPAIR..." << std::endl;
+                log(e.what());
+                log("TRY TO REPAIR..");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 cont_error++;
                 if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -263,56 +255,49 @@ void Client::monitoraCartella(std::string folder){
     });
 
     //sincronizzazione iniziale
-    while(true){ //ritento sincornizzazione iniziale in casi di errori per NUM.. volte, altrimenti confuto un errore permanente e chiudo il programma
+    while(true){ //ritento sincornizzazione iniziale in casi di errori per NUM.. volte, altrimenti confuto un errore permanente e chiudo il processo
         try{
             path dir(folder);           
-            std::cout <<"MONITORING " << dir.string() << std::endl;
+            log("MONITORING " + dir.string());
             Message m = Message("SYNC");
             sendMessage(std::move(m));
             int checksumServer = 0;
             int checksumClient;
-            while(true){
+            while(true){//in caso di errore
                     try{
                         checksumClient = (int)directory->getChecksum();
                         break;
                     }
-                    catch(...){std::cout<<"Tento checksum" << std::endl;continue;}
+                    catch(...){continue;}
             }
             //attendo checksum
             sock.read(&checksumServer, sizeof(checksumServer), 0); //ricevo checksum da server
-            std::cout << "CHECKSUM CLIENT " << checksumClient <<std::endl;
-            std::cout << "CHECKSUM SERVER " << checksumServer <<std::endl;
-            //sendMessage(Message("ACK"));
-            if(checksumClient == checksumServer){ //OK
+
+            if(checksumClient == checksumServer){ //cartelle sincronizzate
                 Message m = Message("OK");
                 sendMessage(std::move(m));
             }
-            else if(checksumServer != 0 && checksumClient==0){ 
-                //fw.not_first_syncro();
+            else if(checksumServer != 0 && checksumClient==0){ //client non ha cartella e la scarica dal server
                
                 fw.freeze();
-                //fw.lock();
                 sendMessageWithResponse("DOWNLOAD", "ACK");
                 downloadDirectory(); //scarico contenuto del server
-                //fw.first_syncro();
-                //fw.unlock();
                 fw.restart();
             }
             else{ //la cartella esiste e quindi la invio al server  
                 //invio richiesta update directory server (fino ad ottenere response ACK)
                 sendMessageWithResponse("UPDATE", "ACK");
-                //invio solo i file con checksum diverso
+                
                 while(true){
                     try{
                         for(filesystem::path path_: directory->getContent()){ 
                             path_ = directory->getPath()/path_;
-                            std::cout  << path_ << std::endl;
                             FileExchanger::sendFile(&sock, directory, filesystem::path(directory->removeFolderPath(path_.string())), FileStatus::modified);
                         }
                         sendMessageWithResponse("END", "ACK");
                         break;
                     }
-                    catch(...){std::cout<<"Tento client" << std::endl;continue;}
+                    catch(...){continue;}
                 }
             }
             //invio le eventuali modifiche che sono state effettuate durante la prima sincronizzazione in ordine di richiesta
@@ -322,8 +307,8 @@ void Client::monitoraCartella(std::string folder){
 
             break; //ho eseguito tutto correttamente
         }catch(std::runtime_error& e){
-            std::cout << e.what() << std::endl;
-            std::cout << "TRY TO REPAIR..." << std::endl;
+            log(e.what());
+            log("TRY TO REPAIR...");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             cont_error++;
             if(cont_error == NUM_POSSIBLE_TRY_RESOLVE_ERROR){
@@ -344,14 +329,12 @@ void Client::monitoraCartella(std::string folder){
             }
         }
     };
-
-    //syncro.join();
     start.join();
 }
 
-
+//scarica il contenuto dal file
 void Client::downloadDirectory(){
-    directory->wipeFolder(); // Even if it shouldn't be needed, wipe it just to be sure
+    directory->wipeFolder(); //cancello il contenuto della cartella client (solo per sicurezza)
     std::cout << "Waiting directory from server" << std::endl;
 
     // Waiting for all files
