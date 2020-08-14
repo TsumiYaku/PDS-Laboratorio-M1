@@ -126,7 +126,7 @@ void Client::sendCreateFileAsynch(std::string path_to_watch){
         std::lock_guard<std::mutex> lg(muSend);
         sendMessageWithResponse("CREATE", "ACK");
         //inviaFile(path(path_to_watch), FileStatus::created, false);
-        FileExchanger::sendFile(&sock, directory, path(path_to_watch), FileStatus::modified);
+        FileExchanger::sendFile(&sock, directory, path(path_to_watch), FileStatus::create);
     });
     create.detach();
 }
