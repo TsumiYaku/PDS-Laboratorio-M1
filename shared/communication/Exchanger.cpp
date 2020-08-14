@@ -75,7 +75,6 @@ bool FileExchanger::receiveFile(Socket *socket, Folder* f) {
         switch (fileInfo.getStatus()) {
             case FileStatus::modified : // If modified it first deletes the folder, then re-creates it (so no break)
                 //f.deleteFile(fileInfo.getPath());
-                break;
             case FileStatus::created :
                 f->writeDirectory(fileInfo.getPath());
                 break;

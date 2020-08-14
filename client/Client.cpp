@@ -186,7 +186,7 @@ void Client::monitoraCartella(std::string folder){
 
     directory = new Folder(user, folder);
     //mi metto in ascolto su un thread separato e attendo una modifica
-    FileWatcher fw{folder, std::chrono::milliseconds(3000)};
+    FileWatcher fw{folder, std::chrono::milliseconds(TIME_MONITORING)};
     fw.first_syncro();
 
     std::thread start([this, &folder, &fw] () {

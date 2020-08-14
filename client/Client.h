@@ -27,6 +27,7 @@
 #include <boost/serialization/access.hpp>
 #include <boost/serialization/string.hpp>
 #define NUM_POSSIBLE_TRY_RESOLVE_ERROR 100
+#define TIME_MONITORING 5000
 
 using namespace boost::filesystem;
 using Serializer = boost::archive::text_oarchive;
