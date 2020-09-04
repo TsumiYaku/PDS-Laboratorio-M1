@@ -68,7 +68,7 @@ bool FileExchanger::receiveFile(Socket *socket, Folder* f) {
     FileWrapper fileInfo = awaitMessage(socket, SIZE_MESSAGE_TEXT, MessageType::file).getFileWrapper();
     filesystem::path file = f->getPath()/fileInfo.getPath();
     if(filesystem::exists(file) && (fileInfo.getStatus() == FileStatus::created))
-       sendMessage(socket, Message("PRESENT")); 
+        sendMessage(socket, Message("PRESENT"));
     else{
         sendMessage(socket, Message("ACK"));
     
@@ -105,6 +105,8 @@ bool FileExchanger::receiveFile(Socket *socket, Folder* f) {
                     break;
                 }
                 case FileStatus::created : {
+                    std::cout << "Reading blocks from socket" << std::endl;
+
                     // Read chunks of data
                     int count_char = fileInfo.getSize();
                     int num = 0;

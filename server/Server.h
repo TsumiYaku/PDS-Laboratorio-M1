@@ -8,6 +8,8 @@
 #include <condition_variable>
 #include <iostream>
 #include <communication/Message.h>
+#include <map>
+#include <list>
 
 // Max number of concurrent connections doing operations on server
 #define POOL_SIZE 4

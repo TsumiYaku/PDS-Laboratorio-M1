@@ -12,10 +12,9 @@ using Serializer = boost::archive::text_oarchive;
 using Deserializer = boost::archive::text_iarchive;
 
 Server::Server(int port): ss(port) {
-    // Process pool initialization
+    // Thread pool initialization
     for(int i=0; i<POOL_SIZE; i++) {
         std::thread t([this]() -> void {
-            //std::lock_guard<std::mutex> lg()
             std::string user;
             while (true) {
                 std::pair<std::string, Message> packet = this->dequeuePacket(); // Blocking read of the queue
@@ -33,6 +32,7 @@ Server::Server(int port): ss(port) {
                 this->userlist_m.unlock();
             }
         });
+        // Detach thread and add to pool list
         t.detach();
         pool.push_back(std::move(t));
     }
@@ -41,10 +41,10 @@ Server::Server(int port): ss(port) {
 void Server::run() {
     std::cout << "Server ready, waiting for connections..." << std::endl;
 
-    fd_set socketSet;
-    int maxFd = 0;
+    fd_set socketSet; // Set of sockets listened by syscall select
+    int maxFd = 0; // Max File Descriptor (useful for select)
     int activity;
-    struct timeval tv;
+    struct timeval tv; // Timeout for each select (used to check for freed clients)
 
     while(true) {
         maxFd = 0;
@@ -57,10 +57,8 @@ void Server::run() {
 
         // add non-busy clients to the listening set
         userlist_m.lock(); // Locking userlist to avoid changes to the list during iteration
-
         for(const auto& user: freeUsers)
             connectedUsers[user].addToSet(socketSet, maxFd);
-
         userlist_m.unlock();
 
         // Listen to socket changes
@@ -127,6 +125,7 @@ void Server::run() {
                 std::cout << "Error during user login" << std::endl;
                 std::cout << "runtime_error: " << e.what() << std::endl;
             }
+
             if(user != "") {
                 std::cout << "Connected user: " << user << std::endl;
                 connectedUsers.insert(std::pair<std::string, Socket>(user, std::move(s)));
@@ -161,6 +160,8 @@ void Server::parsePacket(std::pair<std::string, Message> packet) {
     std::string msg(m.getMessage());
     std::string response;
 
+    std::cout << user << " sent: " << msg << std::endl;
+
     // Check what message has been received
     if(msg == "CHECK") // If client asks checksum
         sendChecksum(user);
@@ -171,7 +172,6 @@ void Server::parsePacket(std::pair<std::string, Message> packet) {
         sendMessage(user, Message("ACK"));
         FileExchanger::receiveFile(&connectedUsers[user], &f);
     }
-    std::cout << msg << " OK" << std::endl; 
 }
 
 std::string Server::handleLogin(Socket* sock) {
@@ -187,7 +187,7 @@ std::string Server::handleLogin(Socket* sock) {
         return "";
     }
     else {
-        // Extract username from login msg
+        // Extract username and password from login msg
         std::string msg = m.getMessage();
         int first, second;
         first = (int)msg.find('_') + 1;
@@ -220,7 +220,6 @@ std::string Server::handleLogin(Socket* sock) {
 
 Message Server::awaitMessage(const std::string& user, int msg_size, MessageType type) {
     Socket *socket = &connectedUsers[user];
-    //std::cout << socket << std::endl;
     return MessageExchanger::awaitMessage(socket);
 }
 
@@ -232,35 +231,39 @@ void Server::sendMessage(const std::string& user, Message &&m) {
 void Server::sendChecksum(const std::string& user) {
     Folder f(user, user);
     int data = (int)f.getChecksum();
-    //std::cout << "SEND CHECKSUM: " << data << std::endl;
+    std::cout << "Sending checksum: " << data << std::endl;
     ssize_t size = connectedUsers[user].write(&data, sizeof(data), 0);
 }
 
 void Server::synchronize(const std::string& user) {
+    std::cout << user << ": SYNCHRONIZATION" << std::endl;
     sendChecksum(user);
 
     Message m = awaitMessage(user);
     std::string msg(m.getMessage());
 
-    if(msg == "OK")
+    // Check what action to take based on client's evaluation on their folder
+    if(msg == "OK") // Folders already synchronized
         return;
-    else if(msg == "UPDATE") {
+    else if(msg == "UPDATE") { //
+        std::cout << user << ": UPDATED REQUESTED" << std::endl;
         sendMessage(user, Message("ACK"));
         downloadDirectory(user);
         std::cout << "UPDATE SUCCESS"<<std::endl;
     }
     else if(msg == "DOWNLOAD") {
+        std::cout << user << ": DOWNLOAD REQUESTED" << std::endl;
         sendMessage(user, Message("ACK"));
         uploadDirectory(user);
         std::cout << "DOWNLOAD SUCCESS"<<std::endl;
     }
+
+    std::cout << user << ": SYNCHRONIZATION SUCCESS" << std::endl;
 }
 
 void Server::downloadDirectory(const std::string& user) {
     Folder f(user, user);
     f.wipeFolder(); // remove all files present in the folder since we're receiving updated ones
-
-    std::cout << "Waiting directory from user " << user << std::endl;
 
     // Keep waiting for files
     while(FileExchanger::receiveFile(&connectedUsers[user], &f)) {}
